@@ -56,7 +56,7 @@ amx start project
 If you provide a filepath after the task name AMX will assume it is a node script and fill
 in the `directory` and `type` and `script` fields of the config file for you.
 
-# remove a task
+# Remove a task
 
 ```
 amx remove taskname

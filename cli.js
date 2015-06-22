@@ -4,18 +4,8 @@ var paths = require('path');
 var http   = require('http');
 var ch = require('child_process');
 var fs = require('fs');
-//validate info
-//connect to the server
-//print err if cant connect
-//look for the server pid
-//if not running, start the server
-//send start/stop/list request
-
 
 common.initSetup();
-
-// console.log("dir = ", common.getConfigDir());
-// console.log("fetching on port",common.PORT);
 
 var args = process.argv.slice();
 // console.log("args = ", args);
@@ -48,6 +38,10 @@ function pad(str,n) {
     return str;
 }
 function printTasks(tasks) {
+    if(tasks.length <= 0) {
+        console.log("no running tasks");
+        return;
+    }
     tasks.forEach(function(task) {
         console.log("task " ,pad(task.name,20), task.running?'running':'stopped', task.pid);
     });
@@ -232,12 +226,37 @@ function stopTask(args) {
     });
 }
 
+function recursiveDeleteDir(str) {
+    if(fs.existsSync(str)) {
+        if(fs.statSync(str).isDirectory()) {
+            fs.readdirSync(str).forEach(function (file) {
+                recursiveDeleteDir(paths.join(str, file));
+            });
+            fs.rmdirSync(str);
+        } else {
+            fs.unlinkSync(str);
+        }
+    }
+}
+
+function removeTask(args) {
+    var taskname = args[0];
+    console.log("removing the task",taskname);
+    doPost("/stop?task="+taskname,function(e,res){
+        console.log("res = ", res);
+        console.log("now to delete it");
+        recursiveDeleteDir(paths.join(common.getConfigDir(),taskname));
+        console.log("done");
+    });
+}
+
 var commands = {
     'list': listProcesses,
     'stopserver':stopServer,
     'make':makeTask,
     'start':startTask,
     'stop':stopTask,
+    'remove':removeTask,
 }
 
 runCommand();
