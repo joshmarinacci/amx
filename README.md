@@ -1,11 +1,11 @@
-# amx
+# AMX
 
 AMX is a process and task runner/automator written in Node JS. It's designed
 to be super easy to use, and requires no external dependencies.
 
 # Getting started
 
-Install amx with
+Install AMX with
 ```
 npm install -g amx
 ```
@@ -70,8 +70,8 @@ Run `amx log taskname` to view the current stdout log.
 Make a new task for a node script in one step.
 ```
 cd myproject
-amx make project1 start.js
-amx start project
+amx make proj1 start.js
+amx start proj1
 ```
 
 If you provide a filepath after the task name AMX will assume it is a node script and fill
