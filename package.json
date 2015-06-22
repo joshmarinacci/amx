@@ -1,0 +1,29 @@
+{
+  "name": "amx",
+  "version": "0.0.3",
+  "description": "automatic process manager",
+  "main": "cli.js",
+  "bin": "./cli.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joshmarinacci/amx.git"
+  },
+  "keywords": [
+    "process",
+    "manager",
+    "deploy"
+  ],
+  "author": "joshua@marinacci.org",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/joshmarinacci/amx/issues"
+  },
+  "homepage": "https://github.com/joshmarinacci/amx#readme"
+}

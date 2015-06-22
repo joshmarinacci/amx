@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 var common = require('./common');
 var paths = require('path');
 var http   = require('http');
@@ -140,10 +141,10 @@ function checkRunning(cb) {
 
 
 function startServer() {
-    console.log('starting the server');
-    out = fs.openSync('./out.log', 'a'),
-    err = fs.openSync('./out.log', 'a');
-    var child = ch.spawn("node",['server.js'],{detached:true, stdio:['ignore',out,err]});
+    console.log('starting the server ', __dirname);
+    out = fs.openSync(__dirname+'/out.log', 'a'),
+    err = fs.openSync(__dirname+'/out.log', 'a');
+    var child = ch.spawn("node",[__dirname+'/server.js'],{detached:true, stdio:['ignore',out,err]});
     child.unref();
 }
 
