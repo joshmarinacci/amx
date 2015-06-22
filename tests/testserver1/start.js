@@ -1,6 +1,7 @@
 var http  = require('http');
 var port = 45782;
 http.createServer(function(req,res) {
+    console.log("got a request");
     res.statusCode = 200;
     res.setHeader('Content-Type','text/json');
     res.write(JSON.stringify({'status':'alive'}));

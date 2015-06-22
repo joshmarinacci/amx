@@ -250,6 +250,11 @@ function removeTask(args) {
     });
 }
 
+function logTask(args) {
+    var taskname = args[0];
+    fs.createReadStream(paths.join(common.getConfigDir(),taskname,'stdout.log')).pipe(process.stdout);
+}
+
 var commands = {
     'list': listProcesses,
     'stopserver':stopServer,
@@ -257,6 +262,7 @@ var commands = {
     'start':startTask,
     'stop':stopTask,
     'remove':removeTask,
+    'log':logTask,
 }
 
 runCommand();

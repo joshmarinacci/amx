@@ -43,6 +43,21 @@ List all running processes with
 amx list
 ```
 
+# Remove a task
+
+```
+amx remove taskname
+```
+
+This will stop the task if running, then delete the config files
+
+
+# View task log
+
+All tasks log their output to `~/.amx/procs/<taskname>/stdout.log` and `stderr.log`. 
+Run `amx log taskname` to view the current stdout log.
+
+
 
 # Shortcuts
 
@@ -55,12 +70,4 @@ amx start project
 
 If you provide a filepath after the task name AMX will assume it is a node script and fill
 in the `directory` and `type` and `script` fields of the config file for you.
-
-# Remove a task
-
-```
-amx remove taskname
-```
-
-This will stop the task if running, then delete the config files
 
