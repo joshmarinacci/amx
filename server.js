@@ -39,6 +39,25 @@ function listProcesses(cb) {
     });
 }
 
+function parseTaskName(req) {
+    var parts = require('url').parse(req.url);
+    var query = parts.query.split('=');
+    var task = query[1];
+    return task;
+}
+
+function taskExists(task) {
+    var taskdir = paths.join(common.getConfigDir(),task);
+    return fs.existsSync(taskdir)
+}
+
+function getTaskPid(task) {
+    var pidfile = paths.join(common.getConfigDir(),task,'pid');
+    if(!fs.existsSync(pidfile)) return -1;
+    var pid = parseInt(fs.readFileSync(pidfile).toString());
+    return pid;
+}
+
 var handlers = {
     '/status': function(req,res) {
         // console.log("handling status");
@@ -48,28 +67,16 @@ var handlers = {
         res.end();
     },
     '/list': function(req,res) {
-        // console.log("doing a list");
         listProcesses(function(pids){
             res.statusCode = 200;
-            console.log("pids = ", pids);
             var list = fs.readdirSync(common.getConfigDir());
-            // console.log("got a list of files", list);
             res.setHeader('Content-Type','text/json');
             var tasks = list.map(function(name) {
-                var dir = paths.join(common.getConfigDir(),name)
-                var pidfile = paths.join(dir,'pid');
-                var pidexists = fs.existsSync(pidfile);
-                console.log("pidfile = ", pidfile);
-                console.log("pid exists", pidexists);
                 var running = false;
-                var pid = -1;
-                if(pidexists) {
-                    pid = parseInt(fs.readFileSync(pidfile).toString());
-                    console.log("loaded pid",pid);
-                    if(pids.indexOf(pid)>=0) {
-                        console.log("pid is running!",pids);
-                        running = true;
-                    }
+                var dir     = paths.join(common.getConfigDir(),name);
+                var pid     = getTaskPid(name);
+                if(pids.indexOf(pid)>=0) {
+                    running = true;
                 }
                 return {
                     name:name,
@@ -83,89 +90,63 @@ var handlers = {
         });
     },
     '/stop': function(req,res) {
-        var parts = require('url').parse(req.url);
-        console.log("parts = ", parts);
-        var query = parts.query.split('=');
-        console.log("query = ", query);
-        var task = query[1];
-        console.log("taskname = ", task);
+        var task = parseTaskName(req);
+        if(!task) return ERROR(res,"no task specified");
+        if(!taskExists(task)) return ERROR(res,"no such task " + task);
 
-        console.log("need to stop a task");
-        var pid = parseInt(fs.readFileSync(paths.join(common.getConfigDir(),task,'pid')).toString());
-        console.log("got the pid",pid);
-
+        var pid = getTaskPid(task);
         listProcesses(function(pids){
-            res.statusCode = 200;
-            res.setHeader('Content-Type','text/json');
             if(pids.indexOf(pid)>=0) {
-                console.log("it's running. must kill");
                 try {
                     process.kill(pid,'SIGINT');
-                    SUCCESS(res,"successfully killed " + task);
+                    return SUCCESS(res,"successfully killed " + task);
                 } catch(er) {
-                    ERROR(res,"error from killing " + er);
+                    return ERROR(res,"error from killing " + er);
                 }
-
             } else {
-                console.log("it's not running");
-                res.write(JSON.stringify({status:'failure',message:'process not running'}));
-                res.end();
-                return;
+                return ERROR(res,"process not running");
             }
-            res.write(JSON.stringify({'status':'success','pid':pid}));
-            res.end();
         });
     },
     '/start': function(req,res) {
-        console.log("need to start a task");
-        var parts = require('url').parse(req.url);
-        console.log("parts = ", parts);
-        var query = parts.query.split('=');
-        console.log("query = ", query);
-        var task = query[1];
-        console.log("taskname = ", task);
+        var task = parseTaskName(req);
+        if(!task) return ERROR(res,"no task specified");
+        if(!taskExists(task)) return ERROR(res,"no such task " + task);
+        var pid = getTaskPid(task);
+        listProcesses(function(pids){
+            if(pids.indexOf(pid)>=0) {
+                return ERROR(res,"task is already running: " + task + " " + pid)
+            }
 
+            var taskdir = paths.join(common.getConfigDir(),task);
+            var config_file = paths.join(taskdir,'config.json');
+            var config = JSON.parse(fs.readFileSync(config_file).toString());
+            if(config.type != 'node') return ERROR(res,"unknown script type " + config.type);
+            if(!fs.existsSync(config.directory)) return ERROR(res,"directory does not exist " + config.directory);
 
-        var taskdir = paths.join(common.getConfigDir(),task);
-        if(!fs.existsSync(taskdir)) return ERROR(res,"no task found with the name " + task);
-
-        var config_file = paths.join(taskdir,'config.json');
-        var config = JSON.parse(fs.readFileSync(config_file).toString());
-        console.log("running task",config);
-
-        if(config.type != 'node') return err(res,"unknown script type " + config.type);
-        if(!fs.existsSync(config.directory)) return err(res,"directory does not exist " + config.directory);
-
-        var command = 'node';
-        var cargs = [config.script];
-        var stdout_log = paths.join(taskdir,'stdout.log');
-        var stderr_log = paths.join(taskdir,'stderr.log');
-        out = fs.openSync(stdout_log, 'a'),
-        err = fs.openSync(stderr_log, 'a');
-        var opts = {
-            cwd:config.directory,
-            detached:true,
-            stdio:['ignore',out,err]
-        }
-        console.log('stdout going to ', stdout_log, stderr_log);
-        console.log("spawning",command,cargs,opts);
-        var child = child_process.spawn(command, cargs, opts);
-        var pid = child.pid;
-        fs.writeFileSync(paths.join(taskdir,'pid'),''+pid);
-
-        child.on('close', function(code) {
-            console.log("child has closed",code);
+            var command = 'node';
+            var cargs = [config.script];
+            var stdout_log = paths.join(taskdir,'stdout.log');
+            var stderr_log = paths.join(taskdir,'stderr.log');
+            out = fs.openSync(stdout_log, 'a'),
+            err = fs.openSync(stderr_log, 'a');
+            var opts = {
+                cwd:config.directory,
+                detached:true,
+                stdio:['ignore',out,err]
+            }
+            console.log("spawning",command,cargs,opts);
+            var child = child_process.spawn(command, cargs, opts);
+            var cpid = child.pid;
+            fs.writeFileSync(paths.join(taskdir,'pid'),''+cpid);
+            child.unref();
+            SUCCESS(res,"started task " + task + ' ' + cpid);
         });
 
-
-        res.statusCode = 200;
-        res.setHeader('Content-Type','text/json');
-        res.write(JSON.stringify({'status':'success','pid':pid}));
-        res.end();
     },
     '/stopserver':function(req,res) {
-        console.log("must stop the server");
-        process.exit(-1);
+        SUCCESS(res,"stopping the server");
+        setTimeout(function(){ process.exit(-1); },100);
     }
 }
 

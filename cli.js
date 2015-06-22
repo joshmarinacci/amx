@@ -149,10 +149,16 @@ function startServer() {
 
 function printUsage() {
     console.log("amx make  <taskname>");
+    console.log("      make a new task")
     console.log("amx edit  <taskname>");
     console.log("amx start <taskname>");
+    console.log("      start a task")
     console.log("amx stop  <taskname>");
+    console.log("      stop a task")
     console.log("amx list");
+    console.log("      list all tasks")
+    console.log("amx stopserver");
+    console.log("      stop the task server")
 }
 
 
