@@ -42,3 +42,25 @@ List all running processes with
 ```
 amx list
 ```
+
+
+# Shortcuts
+
+Make a new task for a node script in one step.
+```
+cd myproject
+amx make project1 start.js
+amx start project
+```
+
+If you provide a filepath after the task name AMX will assume it is a node script and fill
+in the `directory` and `type` and `script` fields of the config file for you.
+
+# remove a task
+
+```
+amx remove taskname
+```
+
+This will stop the task if running, then delete the config files
+

@@ -55,24 +55,18 @@ function printTasks(tasks) {
 
 function listProcesses() {
     checkRunning(function() {
-        console.log("invoking the list");
         var req = http.request({
             host:'localhost',
             port:common.PORT,
             method:'GET',
             path:'/list'},
             function(res) {
-                //console.log("got list back", res.statusCode);
-                //console.log("data = ")
                 var chunks = "";
                 res.on('data',function(data) {
-                    //console.log("got some data " + data);
                     chunks += data.toString();
                 });
                 res.on('end', function() {
-                    //console.log("got the end of the data");
                     var obj = JSON.parse(chunks);
-                    console.log("response from /list = ", obj);
                     printTasks(obj.tasks);
                 });
             }
@@ -168,10 +162,10 @@ var CONFIG_TEMPLATE = {
     directory:"directory of your files",
     type:'node',
     script:'myscript.js'
-}
+};
 
 function makeTask(args) {
-    var taskname = args[0];
+    var taskname = args.shift();
     console.log("making the task",taskname);
     if(!taskname) return printUsage();
     var procpath = paths.join(common.getConfigDir(),taskname);
@@ -180,6 +174,14 @@ function makeTask(args) {
     var confpath = paths.join(procpath,'config.json');
     var config = JSON.parse(JSON.stringify(CONFIG_TEMPLATE));
     config.name = taskname;
+
+    if(args.length > 0) {
+        var script = args[0];
+        config.script = script;
+        config.directory = process.cwd();
+    }
+    console.log("generating ");
+    console.log(JSON.stringify(config,null,'    '));
     fs.writeFileSync(confpath,JSON.stringify(config,null,'    '));
 
     console.log("edit the config file",confpath);
@@ -188,24 +190,18 @@ function makeTask(args) {
 
 function doPost(path,cb) {
     checkRunning(function() {
-        // console.log("invoking the " + path);
         var req = http.request({
             host:'localhost',
             port:common.PORT,
             method:'POST',
             path:path},
             function(res) {
-                // console.log("got start results", res.statusCode);
-                // console.log("data = ")
                 var chunks = "";
                 res.on('data',function(data) {
-                    // console.log("got some data " + data);
                     chunks += data.toString();
                 });
                 res.on('end', function() {
-                    // console.log("got the end of the data");
                     var obj = JSON.parse(chunks);
-                    // console.log("response = ", obj);
                     cb(null,obj);
                 });
             }
