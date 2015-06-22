@@ -5,6 +5,12 @@ to be super easy to use, and requires no external dependencies.
 
 # Getting started
 
+Install amx with
+```
+npm install -g amx
+```
+
+
 Make a new task with:
 
 ```
