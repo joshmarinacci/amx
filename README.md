@@ -13,7 +13,7 @@ npm install -g amx
 If you are on Linux this command may fail because you aren't root. *Do not install AMX as root*.
 If you install AMX as root then all of your services will run as root as well. Instead
 change the global npm directory as described in the node docs
-[here][https://docs.npmjs.com/getting-started/fixing-npm-permissions].
+[here](https://docs.npmjs.com/getting-started/fixing-npm-permissions).
 
 
 
