@@ -58,6 +58,78 @@ function getTaskPid(task) {
     return pid;
 }
 
+function stopTask(task, cb) {
+    var pid = getTaskPid(task);
+    listProcesses(function(pids){
+        if(pids.indexOf(pid)>=0) {
+            try {
+                process.kill(pid,'SIGINT');
+                return cb(null);
+            } catch(er) {
+                return cb(er);
+            }
+        } else {
+            return cb("process not running");
+        }
+    });
+}
+
+function getTaskConfig(task) {
+    var taskdir = paths.join(common.getConfigDir(),task);
+    var config_file = paths.join(taskdir,'config.json');
+    var config = JSON.parse(fs.readFileSync(config_file).toString());
+    return config;
+}
+function updateTask(task, cb) {
+    var config = getTaskConfig(task);
+    console.log("config = ", config);
+    var out = child_process.execSync("git pull ",{cwd:config.directory});;
+    console.log("git pull output = ", out.toString());
+    var out = child_process.execSync("npm install ",{cwd:config.directory});;
+    console.log("npm install output = ", out.toString());
+    cb(null);
+}
+
+function startTask(task, cb) {
+    var pid = getTaskPid(task);
+    listProcesses(function(pids){
+        if(pids.indexOf(pid)>=0) {
+            return cb("task is already running: " + task + " " + pid);
+        }
+
+        var taskdir = paths.join(common.getConfigDir(),task);
+        var config_file = paths.join(taskdir,'config.json');
+        var config = JSON.parse(fs.readFileSync(config_file).toString());
+        if(config.type != 'node') return new Error("unknown script type " + config.type);
+        if(!fs.existsSync(config.directory)) return new Error("directory does not exist " + config.directory);
+
+        var command = 'node';
+        var cargs = [config.script];
+        var stdout_log = paths.join(taskdir,'stdout.log');
+        var stderr_log = paths.join(taskdir,'stderr.log');
+        out = fs.openSync(stdout_log, 'a'),
+            err = fs.openSync(stderr_log, 'a');
+        var opts = {
+            cwd:config.directory,
+            detached:true,
+            stdio:['ignore',out,err]
+        };
+        console.log("spawning",command,cargs,opts);
+        var child = child_process.spawn(command, cargs, opts);
+        var cpid = child.pid;
+        fs.writeFileSync(paths.join(taskdir,'pid'),''+cpid);
+        child.unref();
+        return cb(null,cpid);
+    });
+
+}
+
+function parseJsonPost(req,cb) {
+    var chunks = "";
+    req.on('data',function(data) { chunks += data.toString(); });
+    req.on('end', function() { cb(null,JSON.parse(chunks)); });
+};
+
 var handlers = {
     '/status': function(req,res) {
         // console.log("handling status");
@@ -93,62 +165,55 @@ var handlers = {
         var task = parseTaskName(req);
         if(!task) return ERROR(res,"no task specified");
         if(!taskExists(task)) return ERROR(res,"no such task " + task);
-
-        var pid = getTaskPid(task);
-        listProcesses(function(pids){
-            if(pids.indexOf(pid)>=0) {
-                try {
-                    process.kill(pid,'SIGINT');
-                    return SUCCESS(res,"successfully killed " + task);
-                } catch(er) {
-                    return ERROR(res,"error from killing " + er);
-                }
-            } else {
-                return ERROR(res,"process not running");
-            }
+        stopTask(task, function(err) {
+            if(err) return ERROR(res,"error from killing " + err);
+            return SUCCESS(res,"successfully killed " + task);
         });
     },
     '/start': function(req,res) {
         var task = parseTaskName(req);
         if(!task) return ERROR(res,"no task specified");
         if(!taskExists(task)) return ERROR(res,"no such task " + task);
-        var pid = getTaskPid(task);
-        listProcesses(function(pids){
-            if(pids.indexOf(pid)>=0) {
-                return ERROR(res,"task is already running: " + task + " " + pid)
-            }
-
-            var taskdir = paths.join(common.getConfigDir(),task);
-            var config_file = paths.join(taskdir,'config.json');
-            var config = JSON.parse(fs.readFileSync(config_file).toString());
-            if(config.type != 'node') return ERROR(res,"unknown script type " + config.type);
-            if(!fs.existsSync(config.directory)) return ERROR(res,"directory does not exist " + config.directory);
-
-            var command = 'node';
-            var cargs = [config.script];
-            var stdout_log = paths.join(taskdir,'stdout.log');
-            var stderr_log = paths.join(taskdir,'stderr.log');
-            out = fs.openSync(stdout_log, 'a'),
-            err = fs.openSync(stderr_log, 'a');
-            var opts = {
-                cwd:config.directory,
-                detached:true,
-                stdio:['ignore',out,err]
-            }
-            console.log("spawning",command,cargs,opts);
-            var child = child_process.spawn(command, cargs, opts);
-            var cpid = child.pid;
-            fs.writeFileSync(paths.join(taskdir,'pid'),''+cpid);
-            child.unref();
-            SUCCESS(res,"started task " + task + ' ' + cpid);
-        });
-
+        startTask(task, function(err,cpid){
+            if(err) return ERROR(res,"error"+err);
+            SUCCESS(res,"started task " + task + cpid);
+        })
     },
     '/stopserver':function(req,res) {
         SUCCESS(res,"stopping the server");
         setTimeout(function(){ process.exit(-1); },100);
+    },
+    '/rescan':function(req,res) {
+        var task = parseTaskName(req);
+        if(!task) return ERROR(res,"no task specified");
+    },
+    '/webhook': function(req,res) {
+        console.log("got a webhook");
+        parseJsonPost(req,function(err, payload) {
+            console.log("payload = ", payload);
+            var task = payload.taskname;
+            if(!taskExists(task)) return ERROR(res,"no such task " + task);
+            var secret = payload.secret;
+            var taskdir = paths.join(common.getConfigDir(),task);
+            var config_file = paths.join(taskdir,'config.json');
+            var config = JSON.parse(fs.readFileSync(config_file).toString());
+            console.log("task config = ",config);
+            if(!config.watch) return ERROR(res, "task not configured for watching");
+            if(config.watch.secret != secret) return ERROR(res, "invalid secret");
+            console.log("got the webhook to refresh the process");
+            stopTask(task, function() {
+                console.log("task is stopped");
+                updateTask(task, function() {
+                    console.log("task is updated");
+                    startTask(task, function() {
+                        console.log("task is started");
+                        return SUCCESS(res,"got the webhook");
+                    });
+                });
+            });
+        });
     }
-}
+};
 
 http.createServer(function(req,res) {
     var parts = require('url').parse(req.url);
@@ -162,63 +227,6 @@ http.createServer(function(req,res) {
     res.end();
 }).listen(common.PORT, function() {
     console.log("we are up and running");
-})
+});
 
 
-return;
-var PROCS = "";
-var args = process.argv.slice();
-
-args.shift();
-args.shift();
-
-if(args.length <= 0) return printUsage();
-
-
-var command = args.shift();
-if(command == 'make') {
-    makeTask(args);
-    return;
-}
-if(command == 'start') {
-    startTask(args);
-    return;
-}
-
-return printUsage();
-
-
-
-function startTask(args) {
-    var taskname = args[0];
-    console.log("making the task",taskname);
-    if(!taskname) return err("missing task name");
-
-    initSetup();
-    console.log("procs = ", PROCS);
-    if(!fs.existsSync(paths.join(PROCS,taskname))) return err("no task found with the name " + taskname);
-
-    var config_file = paths.join(PROCS,taskname,'config.json');
-    var config = JSON.parse(fs.readFileSync(config_file).toString());
-    console.log("loading",config);
-
-    if(config.type != 'node') return err("unknown script type " + config.type);
-    if(!fs.existsSync(config.directory)) return err("directory does not exist " + config.directory);
-
-    var command = 'node';
-    var cargs = [config.script];
-    var opts = {
-        cwd:config.directory
-    }
-    var stdout_log = paths.join(PROCS,taskname,'stdout.log');
-    var stderr_log = paths.join(PROCS,taskname,'stderr.log');
-    console.log('stdout going to ', stdout_log, stderr_log);
-    console.log("spawning",command,cargs,opts);
-    var ch = child_process.spawn(command, cargs, opts);
-    ch.stdout.pipe(fs.createWriteStream(stdout_log));
-    ch.stderr.pipe(fs.createWriteStream(stderr_log));
-    ch.on('close', function(code) {
-        console.log("child has closed",code);
-    });
-
-}

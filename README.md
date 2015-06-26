@@ -70,6 +70,24 @@ All tasks log their output to `~/.amx/procs/<taskname>/stdout.log` and `stderr.l
 Run `amx log taskname` to view the current stdout log.
 
 
+# Monitor a git hub repo
+
+Run `amx make taskname` to create the task. Then edit it like this:
+
+```
+{
+   "watch-repo": {
+        "webhook-id":"somekey",
+        "repo":"https://github.com/joshmarinacci/cool.git"
+        "event":"push",
+   }
+}
+```
+
+event push will make it check out and update on every 'push' event.
+
+Code will be checked out to the 'directory' directory.
+
 
 # Shortcuts
 

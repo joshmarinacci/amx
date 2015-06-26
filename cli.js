@@ -262,7 +262,7 @@ var commands = {
     'start':startTask,
     'stop':stopTask,
     'remove':removeTask,
-    'log':logTask,
-}
+    'log':logTask
+};
 
 runCommand();
