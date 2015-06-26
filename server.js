@@ -189,17 +189,19 @@ var handlers = {
     },
     '/webhook': function(req,res) {
         console.log("got a webhook");
+		var parts = require('url').parse(req.url);
+        console.log("path = ",parts.pathname);
+        console.log("headers = ", req.headers);
+        var taskname = parts.pathname.substring('/webhook'.length);
+        console.log("taskname = ", taskname);
         parseJsonPost(req,function(err, payload) {
             console.log("payload = ", payload);
-            var task = payload.taskname;
+            var task = taskname;
             if(!taskExists(task)) return ERROR(res,"no such task " + task);
             var secret = payload.secret;
-            var taskdir = paths.join(common.getConfigDir(),task);
-            var config_file = paths.join(taskdir,'config.json');
-            var config = JSON.parse(fs.readFileSync(config_file).toString());
+            var config = getTaskConfig(task);
             console.log("task config = ",config);
             if(!config.watch) return ERROR(res, "task not configured for watching");
-            if(config.watch.secret != secret) return ERROR(res, "invalid secret");
             console.log("got the webhook to refresh the process");
             stopTask(task, function() {
                 console.log("task is stopped");
@@ -219,6 +221,9 @@ http.createServer(function(req,res) {
     var parts = require('url').parse(req.url);
     console.log("parts = ", parts);
     if(handlers[parts.pathname]) return handlers[parts.pathname](req,res);
+    if(parts.pathname.indexOf('/webhook')>=0) {
+	    return handlers['/webhook'](req,res);
+    }
     console.log("no handler");
 
     res.statusCode = 200;
