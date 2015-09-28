@@ -179,6 +179,18 @@ var handlers = {
             SUCCESS(res,"started task " + task + cpid);
         })
     },
+    '/restart':function(req,res) {
+        var task = parseTaskName(req);
+        if(!task) return ERROR(res,"no task specified");
+        if(!taskExists(task)) return ERROR(res,"no such task " + task);
+        stopTask(task, function(err) {
+            if(err) return ERROR(res,"error from killing " + err);
+            startTask(task, function(err,cpid){
+                if(err) return ERROR(res,"error"+err);
+                SUCCESS(res,"started task " + task + cpid);
+            });
+        });
+    },
     '/stopserver':function(req,res) {
         SUCCESS(res,"stopping the server");
         setTimeout(function(){ process.exit(-1); },100);

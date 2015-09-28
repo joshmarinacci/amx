@@ -226,6 +226,15 @@ function stopTask(args) {
     });
 }
 
+function restartTask(args) {
+    var taskname = args[0];
+    console.log("restarting the task",taskname);
+    doPost("/restart?task="+taskname,function(e,res){
+        // console.log("error = ",e);
+        console.log("res = ", res);
+    });
+}
+
 function recursiveDeleteDir(str) {
     if(fs.existsSync(str)) {
         if(fs.statSync(str).isDirectory()) {
@@ -261,6 +270,7 @@ var commands = {
     'make':makeTask,
     'start':startTask,
     'stop':stopTask,
+    'restart':restartTask,
     'remove':removeTask,
     'log':logTask
 };
