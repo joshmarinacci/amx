@@ -1,6 +1,6 @@
 {
   "name": "amx",
-  "version": "0.0.5",
+  "version": "0.0.5m",
   "description": "automatic process manager",
   "main": "cli.js",
   "bin": "./cli.js",

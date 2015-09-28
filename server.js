@@ -184,7 +184,7 @@ var handlers = {
         if(!task) return ERROR(res,"no task specified");
         if(!taskExists(task)) return ERROR(res,"no such task " + task);
         stopTask(task, function(err) {
-            if(err) return ERROR(res,"error from killing " + err);
+            //if(err) return ERROR(res,"error from killing " + err);
             startTask(task, function(err,cpid){
                 if(err) return ERROR(res,"error"+err);
                 SUCCESS(res,"started task " + task + cpid);
