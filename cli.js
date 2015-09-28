@@ -144,6 +144,8 @@ function printUsage() {
     console.log("      start a task")
     console.log("amx stop  <taskname>");
     console.log("      stop a task")
+    console.log("amx restart <taskname>");
+    console.log("      start a task")
     console.log("amx list");
     console.log("      list all tasks")
     console.log("amx stopserver");
