@@ -13,17 +13,6 @@ if(args.length < 3) return printUsage();
 args.shift();
 args.shift();
 
-function runCommand() {
-    var command = args.shift();
-    // console.log("invoking command", command);
-
-    if(commands[command]) {
-        // console.log("doing the command");
-        return commands[command](args);
-    }
-    console.log("returning back here");
-    return printUsage();
-}
 
 function spaces(n) {
     var str = "";
@@ -140,12 +129,17 @@ function printUsage() {
     console.log("amx make  <taskname>");
     console.log("      make a new task")
     console.log("amx edit  <taskname>");
+    console.log("      edit the task config file");
     console.log("amx start <taskname>");
     console.log("      start a task")
     console.log("amx stop  <taskname>");
     console.log("      stop a task")
     console.log("amx restart <taskname>");
     console.log("      start a task")
+    console.log("amx info <taskname>");
+    console.log("      show information about a task");
+    console.log("amx log <taskname>");
+    console.log("      print logfile for a task");
     console.log("amx list");
     console.log("      list all tasks")
     console.log("amx stopserver");
@@ -263,8 +257,17 @@ function removeTask(args) {
 
 function logTask(args) {
     var taskname = args[0];
+    if(!taskname) return console.log("ERROR: missing taskname");
     fs.createReadStream(paths.join(common.getConfigDir(),taskname,'stdout.log')).pipe(process.stdout);
 }
+
+function infoTask(args) {
+    var taskname = args[0];
+    if(!taskname) return console.log("ERROR: missing taskname");
+    var config = paths.join(common.getConfigDir(),taskname,'config.json');
+    fs.createReadStream(config).pipe(process.stdout);
+}
+
 
 var commands = {
     'list': listProcesses,
@@ -274,7 +277,18 @@ var commands = {
     'stop':stopTask,
     'restart':restartTask,
     'remove':removeTask,
-    'log':logTask
+    'log':logTask,
+    'info':infoTask,
 };
+
+function runCommand() {
+    var command = args.shift();
+
+    if(commands[command]) {
+        return commands[command](args);
+    }
+    console.log("no such command: " + command);
+    return printUsage();
+}
 
 runCommand();
