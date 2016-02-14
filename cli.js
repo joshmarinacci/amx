@@ -268,6 +268,11 @@ function infoTask(args) {
     fs.createReadStream(config).pipe(process.stdout);
 }
 
+function printVersion() {
+    var pkg = JSON.parse(fs.readFileSync(paths.join(__dirname,"package.json")).toString());
+    console.log(pkg.version);
+}
+
 
 var commands = {
     'list': listProcesses,
@@ -279,6 +284,7 @@ var commands = {
     'remove':removeTask,
     'log':logTask,
     'info':infoTask,
+    'version':printVersion,
 };
 
 function runCommand() {
