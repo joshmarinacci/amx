@@ -273,6 +273,36 @@ function printVersion() {
     console.log(pkg.version);
 }
 
+function spawnEditor(editorpath, file, cb) {
+    var vim = ch.spawn( editorpath, [file], {
+        stdio:'inherit'
+    });
+    vim.on('exit', function(code) {
+        if(cb) cb(code);
+    });
+}
+
+function editTask(args) {
+    var taskname = args[0];
+    if(!taskname) return console.log("ERROR: missing taskname");
+    var config = paths.join(common.getConfigDir(),taskname,'config.json');
+    if(process.env.EDITOR) {
+        console.log("launching the editor", process.env.EDITOR);
+        return spawnEditor(process.env.EDITOR,config);
+    } else {
+        //detect location of pico
+        return ch.exec('which pico', function(err,stdout,stderr) {
+            if(err && err.code == 1) {
+                return ch.exec('which vi',function(err,stdout,stderr) {
+                    if (err && err.code == 1) return console.log("no valid editor not found. please set the EDITOR variable");
+                    spawnEditor(stdout.trim(),config);
+                });
+            }
+            spawnEditor(stdout.trim(),config);
+        });
+    }
+}
+
 
 var commands = {
     'list': listProcesses,
@@ -285,6 +315,7 @@ var commands = {
     'log':logTask,
     'info':infoTask,
     'version':printVersion,
+    'edit':editTask
 };
 
 function runCommand() {
