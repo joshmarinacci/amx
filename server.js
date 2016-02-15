@@ -7,6 +7,13 @@ var child_process = require('child_process');
 console.log("my process is",process.pid);
 console.log("starting on port", common.PORT);
 
+var task_map = {};
+function getTaskRestartInfo(taskname) {
+    if(!task_map[taskname]) { task_map[taskname] = { restart_times:[], enabled:true } }
+    var task_info = task_map[taskname];
+    return task_info;
+}
+
 function ERROR(res,str) {
     console.log("ERROR",str);
     res.statusCode = 500;
@@ -30,10 +37,10 @@ function listProcesses(cb) {
         // console.log("got a process list",lines);
         lines = lines.map(function(line) {
             return parseInt(line);
-        })
+        });
         lines = lines.filter(function(line) {
             return !isNaN(line);
-        })
+        });
         // console.log("got a process list",lines);
         return cb(lines);
     });
@@ -59,6 +66,7 @@ function getTaskPid(task) {
 }
 
 function stopTask(task, cb) {
+    getTaskRestartInfo(task).enabled = false;
     var pid = getTaskPid(task);
     listProcesses(function(pids){
         if(pids.indexOf(pid)>=0) {
@@ -80,6 +88,7 @@ function getTaskConfig(task) {
     var config = JSON.parse(fs.readFileSync(config_file).toString());
     return config;
 }
+
 function updateTask(task, cb) {
     var config = getTaskConfig(task);
     console.log("config = ", config);
@@ -92,6 +101,7 @@ function updateTask(task, cb) {
 
 function startTask(task, cb) {
     var pid = getTaskPid(task);
+    getTaskRestartInfo(task).enabled = true;
     listProcesses(function(pids){
         if(pids.indexOf(pid)>=0) {
             return cb("task is already running: " + task + " " + pid);
@@ -114,7 +124,7 @@ function startTask(task, cb) {
             detached:true,
             stdio:['ignore',out,err]
         };
-        console.log("spawning",command,cargs,opts);
+        //console.log("spawning",command,cargs,opts);
         var child = child_process.spawn(command, cargs, opts);
         var cpid = child.pid;
         fs.writeFileSync(paths.join(taskdir,'pid'),''+cpid);
@@ -156,7 +166,7 @@ var handlers = {
                     running: running,
                     pid: pid
                 }
-            })
+            });
             res.write(JSON.stringify({'count':tasks.length,tasks:tasks}));
             res.end();
         });
@@ -247,3 +257,38 @@ http.createServer(function(req,res) {
 });
 
 
+
+function restartCrashedTask(taskname) {
+    var task_info = getTaskRestartInfo(taskname);
+    if(task_info.enabled === false) return;
+
+    //stop if restarted more than five times in last 60 seconds
+    if(task_info.restart_times.length > 5) {
+        var last = task_info.restart_times[task_info.restart_times.length-1];
+        var prev = task_info.restart_times[task_info.restart_times.length-5];
+        var diff = last-prev;
+        if(diff < 60*1000) {
+            task_info.enabled = false;
+            console.log("too many respawns. disabling " + taskname);
+            return;
+        }
+    }
+
+    startTask(taskname, function(err,cpid) {
+        if(err) return console.log("error starting process",err);
+        console.log("restarted",taskname);
+        task_map[taskname].restart_times.push(new Date().getTime());
+    });
+}
+
+function scanProcesses() {
+    listProcesses(function(pids){
+        fs.readdirSync(common.getConfigDir()).forEach(function(taskname){
+            var pid = getTaskPid(taskname);
+            if(pids.indexOf(pid) < 0) restartCrashedTask(taskname);
+        })
+    });
+}
+
+//scanProcesses();
+setInterval(scanProcesses,500);
