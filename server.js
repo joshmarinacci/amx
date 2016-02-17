@@ -3,9 +3,29 @@ var paths = require('path');
 var fs    = require('fs');
 var http  = require('http');
 var child_process = require('child_process');
+var util  = require('util');
 
-console.log("my process is",process.pid);
-console.log("starting on port", common.PORT);
+common.initSetup();
+
+var path = paths.join(common.getRootDir(),'status.log');
+var logger;
+try {
+    fs.accessSync(path, fs.W_OK);
+    logger = fs.createWriteStream(path, { flags: 'r+'});
+} catch(e) {
+    logger = fs.createWriteStream(path, { flags: 'w'});
+}
+
+function log() {
+    var args = Array.prototype.slice.call(arguments,0);
+    var str = new Date().getTime() + ": " + args.map(function(a) { return util.inspect(a); }).join(" ")+"\n";
+    console.log(str);
+    logger.write(str);
+}
+
+
+
+log("AMX server starting on port ", common.PORT,"with process",process.pid);
 
 var task_map = {};
 function getTaskRestartInfo(taskname) {
@@ -15,33 +35,32 @@ function getTaskRestartInfo(taskname) {
 }
 
 function ERROR(res,str) {
-    console.log("ERROR",str);
+    log("ERROR",str);
     res.statusCode = 500;
     res.setHeader('Content-Type','text/json');
     res.write(JSON.stringify({status:'error','message':str}));
     res.end();
 }
 function SUCCESS(res,str) {
-    console.log("SUCCESS",str);
+    log("SUCCESS",str);
     res.statusCode = 200;
     res.setHeader('Content-Type','text/json');
     res.write(JSON.stringify({status:'success','message':str}));
     res.end();
 }
 
-common.initSetup();
 
 function listProcesses(cb) {
     child_process.exec('ps ax -o pid=',function(err,stdout,stderr){
         var lines = stdout.split('\n');
-        // console.log("got a process list",lines);
+        // log("got a process list",lines);
         lines = lines.map(function(line) {
             return parseInt(line);
         });
         lines = lines.filter(function(line) {
             return !isNaN(line);
         });
-        // console.log("got a process list",lines);
+        // log("got a process list",lines);
         return cb(lines);
     });
 }
@@ -91,16 +110,17 @@ function getTaskConfig(task) {
 
 function updateTask(task, cb) {
     var config = getTaskConfig(task);
-    console.log("config = ", config);
+    log("config = ", config);
     var out = child_process.execSync("git pull ",{cwd:config.directory});;
-    console.log("git pull output = ", out.toString());
+    log("git pull output = ", out.toString());
     var out = child_process.execSync("npm install ",{cwd:config.directory});;
-    console.log("npm install output = ", out.toString());
+    log("npm install output = ", out.toString());
     cb(null);
 }
 
 function startTask(task, cb) {
     var pid = getTaskPid(task);
+    log("trying to start", task);
     getTaskRestartInfo(task).enabled = true;
     listProcesses(function(pids){
         if(pids.indexOf(pid)>=0) {
@@ -124,7 +144,7 @@ function startTask(task, cb) {
             detached:true,
             stdio:['ignore',out,err]
         };
-        //console.log("spawning",command,cargs,opts);
+        //log("spawning",command,cargs,opts);
         var child = child_process.spawn(command, cargs, opts);
         var cpid = child.pid;
         fs.writeFileSync(paths.join(taskdir,'pid'),''+cpid);
@@ -142,7 +162,7 @@ function parseJsonPost(req,cb) {
 
 var handlers = {
     '/status': function(req,res) {
-        // console.log("handling status");
+        // log("handling status");
         res.statusCode = 200;
         res.setHeader('Content-Type','text/json');
         res.write(JSON.stringify({'status':'alive'}));
@@ -210,27 +230,25 @@ var handlers = {
         if(!task) return ERROR(res,"no task specified");
     },
     '/webhook': function(req,res) {
-        console.log("got a webhook");
+        log("got a webhook");
 		var parts = require('url').parse(req.url);
-        console.log("path = ",parts.pathname);
-        console.log("headers = ", req.headers);
+        log("path = ",parts.pathname);
+        log("headers = ", req.headers);
         var taskname = parts.pathname.substring('/webhook'.length);
-        console.log("taskname = ", taskname);
+        log("taskname = ", taskname);
         parseJsonPost(req,function(err, payload) {
-            console.log("payload = ", payload);
             var task = taskname;
             if(!taskExists(task)) return ERROR(res,"no such task " + task);
             var secret = payload.secret;
             var config = getTaskConfig(task);
-            console.log("task config = ",config);
             if(!config.watch) return ERROR(res, "task not configured for watching");
-            console.log("got the webhook to refresh the process");
+            log("got the webhook to refresh the process");
             stopTask(task, function() {
-                console.log("task is stopped");
+                log("task is stopped");
                 updateTask(task, function() {
-                    console.log("task is updated");
+                    log("task is updated");
                     startTask(task, function() {
-                        console.log("task is started");
+                        log("task is started");
                         return SUCCESS(res,"got the webhook");
                     });
                 });
@@ -241,19 +259,19 @@ var handlers = {
 
 http.createServer(function(req,res) {
     var parts = require('url').parse(req.url);
-    console.log("parts = ", parts);
+    log("parts = ", parts);
     if(handlers[parts.pathname]) return handlers[parts.pathname](req,res);
     if(parts.pathname.indexOf('/webhook')>=0) {
 	    return handlers['/webhook'](req,res);
     }
-    console.log("no handler");
+    log("no handler");
 
     res.statusCode = 200;
     res.setHeader('Content-Type','text/json');
     res.write(JSON.stringify({'status':'alive'}));
     res.end();
 }).listen(common.PORT, function() {
-    console.log("we are up and running");
+    log("we are up and running");
 });
 
 
@@ -269,14 +287,15 @@ function restartCrashedTask(taskname) {
         var diff = last-prev;
         if(diff < 60*1000) {
             task_info.enabled = false;
-            console.log("too many respawns. disabling " + taskname);
+            log("too many respawns. disabling " + taskname);
             return;
         }
     }
 
+    log("restarting crashed task",taskname);
     startTask(taskname, function(err,cpid) {
-        if(err) return console.log("error starting process",err);
-        console.log("restarted",taskname);
+        if(err) return log("error starting process",err);
+        log("restarted",taskname);
         task_map[taskname].restart_times.push(new Date().getTime());
     });
 }
