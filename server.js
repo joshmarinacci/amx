@@ -130,15 +130,15 @@ function startTask(task, cb) {
         var taskdir = paths.join(common.getConfigDir(),task);
         var config_file = paths.join(taskdir,'config.json');
         var config = JSON.parse(fs.readFileSync(config_file).toString());
-        if(config.type != 'node') return new Error("unknown script type " + config.type);
-        if(!fs.existsSync(config.directory)) return new Error("directory does not exist " + config.directory);
+        if(config.type != 'node') return cb(new Error("unknown script type " + config.type));
+        if(!fs.existsSync(config.directory)) return cb(new Error("directory does not exist " + config.directory));
 
         var command = 'node';
         var cargs = [config.script];
         var stdout_log = paths.join(taskdir,'stdout.log');
         var stderr_log = paths.join(taskdir,'stderr.log');
-        out = fs.openSync(stdout_log, 'a'),
-            err = fs.openSync(stderr_log, 'a');
+        var out = fs.openSync(stdout_log, 'a');
+        var err = fs.openSync(stderr_log, 'a');
         var opts = {
             cwd:config.directory,
             detached:true,
@@ -293,10 +293,10 @@ function restartCrashedTask(taskname) {
     }
 
     log("restarting crashed task",taskname);
+    task_map[taskname].restart_times.push(new Date().getTime());
     startTask(taskname, function(err,cpid) {
         if(err) return log("error starting process",err);
         log("restarted",taskname);
-        task_map[taskname].restart_times.push(new Date().getTime());
     });
 }
 
