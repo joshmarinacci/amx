@@ -118,6 +118,12 @@ function updateTask(task, cb) {
     cb(null);
 }
 
+function copyInto(src,dst) {
+    for(var name in src) {
+        dst[name] = src[name];
+    }
+}
+
 function startTask(task, cb) {
     var pid = getTaskPid(task);
     log("trying to start", task);
@@ -142,8 +148,11 @@ function startTask(task, cb) {
         var opts = {
             cwd:config.directory,
             detached:true,
-            stdio:['ignore',out,err]
+            stdio:['ignore',out,err],
+            env: {}
         };
+        copyInto(process.env,opts.env);
+        if(config.env) copyInto(config.env,opts.env);
         //log("spawning",command,cargs,opts);
         var child = child_process.spawn(command, cargs, opts);
         var cpid = child.pid;

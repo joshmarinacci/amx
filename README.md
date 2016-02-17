@@ -3,6 +3,12 @@
 AMX is a process and task runner/automator written in Node JS. It's designed
 to be super easy to use, and requires no external dependencies.
 
+# NOTE
+
+Currently AMX only supports tasks written in Node. In the future it will support other arbitrary scripts.
+
+
+
 # Getting started
 
 Install AMX with
@@ -23,7 +29,8 @@ Make a new task with:
 amx make <taskname>
 ```
 
-Then edit the config file in `~/.amx/procs/taskname/config.json`
+Then edit the config file in `~/.amx/procs/taskname/config.json`,
+or with `amx edit <taskname>`,
 to set the directory and script to run. For example,
 to run the program `server.js` in `/home/me/radcode/`,
 run `amx make radserver` then
@@ -69,6 +76,32 @@ This will stop the task if running, then delete the config files
 All tasks log their output to `~/.amx/procs/<taskname>/stdout.log` and `stderr.log`. 
 Run `amx log taskname` to view the current stdout log.
 
+# Edit task's config
+
+```
+amx edit taskname
+```
+
+This will open up your preferred command line editor as specified by the EDITOR environment variable.
+
+# Set Environment Variables
+
+
+set the env property in the config file. ex:
+
+```
+{
+   "env" : {
+       "SECRET_KEY":"my_special_secret",
+       "FOO_HOME":"/some/path/to/foo"
+   }
+}
+```
+
+Now these variable can be accessed from inside the script
+with `process.env.SECRET_KEY`, etc.
+
+
 
 # Monitor a git hub repo
 
@@ -89,6 +122,9 @@ event push will make it check out and update on every 'push' event.
 Code will be checked out to the 'directory' directory.
 
 
+
+
+
 # Shortcuts
 
 Make a new task for a node script in one step.
@@ -100,4 +136,11 @@ amx start proj1
 
 If you provide a filepath after the task name AMX will assume it is a node script and fill
 in the `directory` and `type` and `script` fields of the config file for you.
+
+# How it works
+
+AMX actually has two components: the command line interface and a server process. The server
+will be started automatically if it's not already running when you execute the commandline interface.
+The server will monitor the running tasks and restart them if they crash.  If a task needs
+to be restarted more than 5 times in 60 seconds then AMX will disable it.
 
