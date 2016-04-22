@@ -22,7 +22,36 @@ function log() {
     console.log(str);
     logger.write(str);
 }
+var sendEmail = function() {};
 
+var config = common.getConfig();
+console.log("config is",config);
+
+function alert() {
+    var args = Array.prototype.slice.call(arguments,0);
+    var str = new Date().getTime() + ": " + args.map(function(a) { return util.inspect(a); }).join(" ")+"\n";
+    console.log('sending an alert', str);
+    sendEmail(str);
+}
+
+if(config.alerts &&
+   config.alerts.email) {
+    sendEmail = function(text) {
+        var nodemailer = require('nodemailer');
+        var transporter = nodemailer.createTransport(config.alerts.email.transport);
+        var opts = {
+            from: config.alerts.email.from,
+            to: config.alerts.email.to,
+            subject: "AMX Alert",
+            text: "alert:\n" + text,
+        };
+
+        transporter.sendMail(opts, function(err,info) {
+            if(err) return console.log(err);
+            console.log('sent', info.response);
+        });
+    }
+}
 
 
 log("AMX server starting on port ", common.PORT,"with process",process.pid);
@@ -296,16 +325,21 @@ function restartCrashedTask(taskname) {
         var diff = last-prev;
         if(diff < 60*1000) {
             task_info.enabled = false;
+            alert("too many respawns, disabling" + taskname);
             log("too many respawns. disabling " + taskname);
             return;
         }
     }
 
-    log("restarting crashed task",taskname);
+    alert("restarting crashed task",taskname);
     task_map[taskname].restart_times.push(new Date().getTime());
     startTask(taskname, function(err,cpid) {
-        if(err) return log("error starting process",err);
+        if(err) {
+            alert("error starting process",err);
+            return log("error starting process",err);
+        }
         log("restarted",taskname);
+        alert("restarted",taskname);
     });
 }
 

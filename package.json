@@ -1,6 +1,6 @@
 {
   "name": "amx",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "automatic process manager",
   "main": "cli.js",
   "bin": "./cli.js",
@@ -25,5 +25,8 @@
   "bugs": {
     "url": "https://github.com/joshmarinacci/amx/issues"
   },
-  "homepage": "https://github.com/joshmarinacci/amx#readme"
+  "homepage": "https://github.com/joshmarinacci/amx#readme",
+  "dependencies": {
+    "nodemailer": "^2.3.2"
+  }
 }

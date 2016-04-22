@@ -144,3 +144,23 @@ will be started automatically if it's not already running when you execute the c
 The server will monitor the running tasks and restart them if they crash.  If a task needs
 to be restarted more than 5 times in 60 seconds then AMX will disable it.
 
+
+# Send Email Alerts
+
+To have AMX send emails whenever a process stops simply create or edit `~.amx/config.json`
+
+```
+{
+   "alerts": {
+        "email":{
+           "transport":"smtps://me%40mydomain.com:somepassword@smtp.gmail.com",
+           "to":"my@mydomain.com",
+           "from":"amx@myotherdomain.com"
+        }
+   }
+}
+```
+
+The `transport` parameter is a URL which will be passed to [nodemailer](https://nodemailer.com)
+to send an email.
+
