@@ -1,7 +1,8 @@
 # AMX
 
 AMX is a process and task runner/automator written in Node JS. It's designed
-to be super easy to use, and requires no external dependencies.
+to be super easy to use, and requires no external dependencies,
+except nodemailer for sending email alerts.
 
 # NOTE
 
@@ -162,5 +163,29 @@ To have AMX send emails whenever a process stops simply create or edit `~.amx/co
 ```
 
 The `transport` parameter is a URL which will be passed to [nodemailer](https://nodemailer.com)
-to send an email.
+to send an email.  Note that you must escape the @ sign as %40 and if you use gmail you
+probably need to generate a new application specific password.
+
+
+# get status of AMX itself
+
+
+```
+amx selfstatus
+
+AMX
+0.0.11
+Config /Users/josh/.amx/config.json
+{
+    "alerts": {
+        "email": {
+            "transport": "smtps://user%40domain:password@smtp.gmail.com",
+            "from": "\"amx\" <amx@npmjs.com>",
+            "to": "username@domain.tld"
+        }
+    }
+}
+server on port  48999
+process descriptions /Users/josh/.amx/procs
+```
 

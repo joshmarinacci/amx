@@ -144,6 +144,10 @@ function printUsage() {
     console.log("      list all tasks")
     console.log("amx stopserver");
     console.log("      stop the task server")
+    console.log("amx version");
+    console.log("      version of AMX from NPM")
+    console.log("amx selfstatus");
+    console.log("      print version, config, status information of AMX itself")
 }
 
 
@@ -273,6 +277,15 @@ function printVersion() {
     console.log(pkg.version);
 }
 
+function selfStatus() {
+    console.log("AMX");
+    printVersion();
+    console.log("Config", paths.join(common.getRootDir(),'config.json'));
+    console.log(JSON.stringify(common.getConfig(),null,'    '));
+    console.log("server on port ", common.PORT);
+    console.log("process descriptions", common.getConfigDir());
+}
+
 function spawnEditor(editorpath, file, cb) {
     var vim = ch.spawn( editorpath, [file], {
         stdio:'inherit'
@@ -315,7 +328,8 @@ var commands = {
     'log':logTask,
     'info':infoTask,
     'version':printVersion,
-    'edit':editTask
+    'edit':editTask,
+    'selfstatus':selfStatus,
 };
 
 function runCommand() {
