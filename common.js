@@ -16,7 +16,12 @@ exports.initSetup = function() {
     if(!fs.existsSync(file)) {
         config = { }
     } else {
-        config = JSON.parse(fs.readFileSync(file).toString());
+        try {
+            config = JSON.parse(fs.readFileSync(file).toString());
+        } catch (e) {
+            console.log("error parsing json in file", file);
+            process.exit(-1);
+        }
     }
 };
 exports.getConfigDir = function() {
