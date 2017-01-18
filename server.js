@@ -153,6 +153,7 @@ function copyInto(src,dst) {
     }
 }
 
+
 function startTask(task, cb) {
     var pid = getTaskPid(task);
     log("trying to start", task);
@@ -165,15 +166,22 @@ function startTask(task, cb) {
         var taskdir = paths.join(common.getConfigDir(),task);
         var config_file = paths.join(taskdir,'config.json');
         var config = JSON.parse(fs.readFileSync(config_file).toString());
-        if(config.type != 'node') return cb(new Error("unknown script type " + config.type));
         if(!fs.existsSync(config.directory)) return cb(new Error("directory does not exist " + config.directory));
-
-        var command = 'node';
-        var cargs = [config.script];
         var stdout_log = paths.join(taskdir,'stdout.log');
         var stderr_log = paths.join(taskdir,'stderr.log');
         var out = fs.openSync(stdout_log, 'a');
         var err = fs.openSync(stderr_log, 'a');
+        var cargs = null;
+        var command = null;
+        if(config.type === 'npm')  {
+            cargs = ['run',config.script];
+            command = 'npm';
+        }
+        if(config.type === 'node') {
+            cargs = [config.script];
+            command = 'node';
+        }
+        if(command === null) return cb(new Error("unknown script type " + config.type));
         var opts = {
             cwd:config.directory,
             detached:true,
@@ -189,7 +197,6 @@ function startTask(task, cb) {
         child.unref();
         return cb(null,cpid);
     });
-
 }
 
 function parseJsonPost(req,cb) {
