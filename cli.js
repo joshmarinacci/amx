@@ -4,6 +4,7 @@ var paths = require('path');
 var http   = require('http');
 var ch = require('child_process');
 var fs = require('fs');
+var Tail = require('tail').Tail;
 
 common.initSetup();
 
@@ -140,6 +141,8 @@ function printUsage() {
     console.log("      show information about a task");
     console.log("amx log <taskname>");
     console.log("      print logfile for a task");
+    console.log("amx follow <taskname>");
+    console.log("      watch for new lines in the logfiles of the task");
     console.log("amx list");
     console.log("      list all tasks")
     console.log("amx stopserver");
@@ -265,6 +268,25 @@ function logTask(args) {
     fs.createReadStream(paths.join(common.getConfigDir(),taskname,'stdout.log')).pipe(process.stdout);
 }
 
+function followTask(args) {
+    var taskname = args[0];
+    if(!taskname) return console.log("ERROR: missing taskname");
+    var stdoutTail = new Tail(paths.join(common.getConfigDir(),taskname,'stdout.log'));
+    stdoutTail.on('line', function(data) {
+        console.log(data)
+    })
+    stdoutTail.on('error', function(data) {
+        console.log('ERROR:',data)
+    })
+    var stderrTail = new Tail(paths.join(common.getConfigDir(),taskname,'stderr.log'));
+    stderrTail.on('line', function(data) {
+        console.log(data)
+    })
+    stderrTail.on('error', function(data) {
+        console.log('ERROR:',data)
+    })
+}
+
 function infoTask(args) {
     var taskname = args[0];
     if(!taskname) return console.log("ERROR: missing taskname");
@@ -330,6 +352,7 @@ var commands = {
     'version':printVersion,
     'edit':editTask,
     'selfstatus':selfStatus,
+    'follow':followTask,
 };
 
 function runCommand() {
