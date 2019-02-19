@@ -4,6 +4,7 @@ var fs    = require('fs');
 var http  = require('http');
 var child_process = require('child_process');
 var util  = require('util');
+const URL = require('url')
 
 common.initSetup();
 
@@ -59,8 +60,7 @@ log("AMX server starting on port ", common.PORT,"with process",process.pid);
 var task_map = {};
 function getTaskRestartInfo(taskname) {
     if(!task_map[taskname]) { task_map[taskname] = { restart_times:[], enabled:true } }
-    var task_info = task_map[taskname];
-    return task_info;
+    return task_map[taskname];
 }
 
 function ERROR(res,str) {
@@ -80,52 +80,39 @@ function SUCCESS(res,str) {
 
 
 function listProcesses(cb) {
-    child_process.exec('ps ax -o pid=',function(err,stdout,stderr){
-        var lines = stdout.split('\n');
-        // log("got a process list",lines);
-        lines = lines.map(function(line) {
-            return parseInt(line);
+    return new Promise((res,rej) => {
+        child_process.exec('ps ax -o pid=',function(err,stdout,stderr){
+            let lines = stdout.split('\n');
+            lines = lines.map((line) =>parseInt(line))
+            lines = lines.filter((line) => !isNaN(line))
+            res(lines)
         });
-        lines = lines.filter(function(line) {
-            return !isNaN(line);
-        });
-        // log("got a process list",lines);
-        return cb(lines);
-    });
+    })
 }
 
 function parseTaskName(req) {
-    var parts = require('url').parse(req.url);
-    var query = parts.query.split('=');
-    var task = query[1];
-    return task;
+    return URL.parse(req.url).query.split('=')[1]
 }
 
 function taskExists(task) {
-    var taskdir = paths.join(common.getConfigDir(),task);
-    return fs.existsSync(taskdir)
+    return fs.existsSync(paths.join(common.getConfigDir(), task))
 }
 
 function getTaskPid(task) {
-    var pidfile = paths.join(common.getConfigDir(),task,'pid');
+    const pidfile = paths.join(common.getConfigDir(),task,'pid');
     if(!fs.existsSync(pidfile)) return -1;
-    var pid = parseInt(fs.readFileSync(pidfile).toString());
-    return pid;
+    return parseInt(fs.readFileSync(pidfile).toString());
 }
 
 function stopTask(task, cb) {
     getTaskRestartInfo(task).enabled = false;
-    var pid = getTaskPid(task);
-    listProcesses(function(pids){
+    const pid = getTaskPid(task);
+    return listProcesses().then(pids => {
         if(pids.indexOf(pid)>=0) {
-            try {
-                process.kill(pid,'SIGINT');
-                return cb(null);
-            } catch(er) {
-                return cb(er);
-            }
+            process.kill(pid,'SIGINT');
+            return null
         } else {
-            return cb("process not running");
+            return "process not running"
         }
     });
 }
@@ -155,13 +142,11 @@ function copyInto(src,dst) {
 
 
 function startTask(task, cb) {
-    var pid = getTaskPid(task);
+    const pid = getTaskPid(task)
     log("trying to start", task);
     getTaskRestartInfo(task).enabled = true;
-    listProcesses(function(pids){
-        if(pids.indexOf(pid)>=0) {
-            return cb("task is already running: " + task + " " + pid);
-        }
+    return listProcesses().then(pids => {
+        if(pids.indexOf(pid)>=0)  throw new Error(`task is already running: ${task} ${pid}`);
 
         var taskdir = paths.join(common.getConfigDir(),task);
         var config_file = paths.join(taskdir,'config.json');
@@ -181,6 +166,10 @@ function startTask(task, cb) {
             cargs = [config.script];
             command = 'node';
         }
+        if(config.type === 'exe') {
+            cargs = []
+            command = config.script
+        }
         if(command === null) return cb(new Error("unknown script type " + config.type));
         var opts = {
             cwd:config.directory,
@@ -191,11 +180,11 @@ function startTask(task, cb) {
         copyInto(process.env,opts.env);
         if(config.env) copyInto(config.env,opts.env);
         //log("spawning",command,cargs,opts);
-        var child = child_process.spawn(command, cargs, opts);
-        var cpid = child.pid;
+        const child = child_process.spawn(command, cargs, opts)
+        const cpid = child.pid
         fs.writeFileSync(paths.join(taskdir,'pid'),''+cpid);
         child.unref();
-        return cb(null,cpid);
+        return cpid
     });
 }
 
@@ -207,21 +196,20 @@ function parseJsonPost(req,cb) {
 
 var handlers = {
     '/status': function(req,res) {
-        // log("handling status");
         res.statusCode = 200;
         res.setHeader('Content-Type','text/json');
         res.write(JSON.stringify({'status':'alive'}));
         res.end();
     },
     '/list': function(req,res) {
-        listProcesses(function(pids){
+        listProcesses().then(pids => {
             res.statusCode = 200;
             var list = fs.readdirSync(common.getConfigDir());
             res.setHeader('Content-Type','text/json');
             var tasks = list.map(function(name) {
-                var running = false;
-                var dir     = paths.join(common.getConfigDir(),name);
-                var pid     = getTaskPid(name);
+                let running = false
+                const dir = paths.join(common.getConfigDir(), name)
+                const pid = getTaskPid(name)
                 if(pids.indexOf(pid)>=0) {
                     running = true;
                 }
@@ -236,63 +224,58 @@ var handlers = {
             res.end();
         });
     },
-    '/stop': function(req,res) {
-        var task = parseTaskName(req);
+    '/stop': (req,res) => {
+        const task = parseTaskName(req);
         if(!task) return ERROR(res,"no task specified");
         if(!taskExists(task)) return ERROR(res,"no such task " + task);
-        stopTask(task, function(err) {
-            if(err) return ERROR(res,"error from killing " + err);
-            return SUCCESS(res,"successfully killed " + task);
-        });
+        return stopTask(task)
+            .then(()=> SUCCESS(res,"successfully killed " + task))
+            .catch(err => ERROR(res,"error from killing " + err));
     },
     '/start': function(req,res) {
-        var task = parseTaskName(req);
+        const task = parseTaskName(req);
         if(!task) return ERROR(res,"no task specified");
         if(!taskExists(task)) return ERROR(res,"no such task " + task);
-        startTask(task, function(err,cpid){
-            if(err) return ERROR(res,"error"+err);
-            SUCCESS(res,"started task " + task + cpid);
-        })
+        startTask(task)
+            .then(cpid => SUCCESS(res,"started task " + task + cpid))
+            .catch(err => ERROR(res,"error"+err));
     },
     '/restart':function(req,res) {
-        var task = parseTaskName(req);
+        const task = parseTaskName(req);
         if(!task) return ERROR(res,"no task specified");
         if(!taskExists(task)) return ERROR(res,"no such task " + task);
-        stopTask(task, function(err) {
-            //if(err) return ERROR(res,"error from killing " + err);
-            startTask(task, function(err,cpid){
-                if(err) return ERROR(res,"error"+err);
-                SUCCESS(res,"started task " + task + cpid);
-            });
-        });
+        stopTask(task)
+            .then(()=> startTask(task))
+            .then(cpid => SUCCESS(res,"started task " + task + cpid))
+            .catch(err => ERROR(res,"error"+err));
     },
     '/stopserver':function(req,res) {
         SUCCESS(res,"stopping the server");
         setTimeout(function(){ process.exit(-1); },100);
     },
     '/rescan':function(req,res) {
-        var task = parseTaskName(req);
+        const task = parseTaskName(req);
         if(!task) return ERROR(res,"no task specified");
     },
     '/webhook': function(req,res) {
         log("got a webhook");
-		var parts = require('url').parse(req.url);
+        const parts = URL.parse(req.url)
         log("path = ",parts.pathname);
         log("headers = ", req.headers);
-        var taskname = parts.pathname.substring('/webhook'.length);
+        const taskname = parts.pathname.substring('/webhook'.length)
         log("taskname = ", taskname);
         parseJsonPost(req,function(err, payload) {
-            var task = taskname;
+            const task = taskname
             if(!taskExists(task)) return ERROR(res,"no such task " + task);
-            var secret = payload.secret;
-            var config = getTaskConfig(task);
+            const secret = payload.secret
+            const config = getTaskConfig(task)
             if(!config.watch) return ERROR(res, "task not configured for watching");
             log("got the webhook to refresh the process");
-            stopTask(task, function() {
+            stopTask(task).then(()=>{
                 log("task is stopped");
                 updateTask(task, function() {
                     log("task is updated");
-                    startTask(task, function() {
+                    startTask(task).then(() =>{
                         log("task is started");
                         return SUCCESS(res,"got the webhook");
                     });
@@ -303,7 +286,7 @@ var handlers = {
 };
 
 http.createServer(function(req,res) {
-    var parts = require('url').parse(req.url);
+    const parts = URL.parse(req.url)
     log("parts = ", parts);
     if(handlers[parts.pathname]) return handlers[parts.pathname](req,res);
     if(parts.pathname.indexOf('/webhook')>=0) {
@@ -327,10 +310,9 @@ function restartCrashedTask(taskname) {
 
     //stop if restarted more than five times in last 60 seconds
     if(task_info.restart_times.length > 5) {
-        var last = task_info.restart_times[task_info.restart_times.length-1];
-        var prev = task_info.restart_times[task_info.restart_times.length-5];
-        var diff = last-prev;
-        if(diff < 60*1000) {
+        const last = task_info.restart_times[task_info.restart_times.length - 1]
+        const prev = task_info.restart_times[task_info.restart_times.length - 5]
+        if(last - prev < 60*1000) {
             task_info.enabled = false;
             alert("too many respawns, disabling" + taskname);
             log("too many respawns. disabling " + taskname);
@@ -340,24 +322,22 @@ function restartCrashedTask(taskname) {
 
     alert("restarting crashed task",taskname);
     task_map[taskname].restart_times.push(new Date().getTime());
-    startTask(taskname, function(err,cpid) {
-        if(err) {
-            alert("error starting process",err);
-            return log("error starting process",err);
-        }
+    startTask(taskname).then(cpid => {
         log("restarted",taskname);
         alert("restarted",taskname);
-    });
+    }).catch(err => {
+        alert("error starting process",err);
+        return log("error starting process",err);
+    })
 }
 
 function scanProcesses() {
-    listProcesses(function(pids){
-        fs.readdirSync(common.getConfigDir()).forEach(function(taskname){
-            var pid = getTaskPid(taskname);
+    listProcesses().then(pids => {
+        fs.readdirSync(common.getConfigDir()).forEach((taskname) => {
+            const pid = getTaskPid(taskname);
             if(pids.indexOf(pid) < 0) restartCrashedTask(taskname);
         })
     });
 }
 
-//scanProcesses();
 setInterval(scanProcesses,500);
