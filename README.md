@@ -75,7 +75,11 @@ This will stop the task if running, then delete the config files
 # View task log
 
 All tasks log their output to `~/.amx/procs/<taskname>/stdout.log` and `stderr.log`. 
-Run `amx log taskname` to view the current stdout log.
+Run `amx log taskname` to view the current stdout log.  Run `amx follow taskname` to 
+wait and continuually show new log output from both stdout and stderr.
+
+
+
 
 # Edit task's config
 
