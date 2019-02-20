@@ -168,6 +168,7 @@ function startTask(task, cb) {
         }
         if(config.type === 'exe') {
             cargs = []
+            if(config.args) cargs = config.args
             command = config.script
         }
         if(command === null) return cb(new Error("unknown script type " + config.type));
@@ -179,8 +180,11 @@ function startTask(task, cb) {
         };
         copyInto(process.env,opts.env);
         if(config.env) copyInto(config.env,opts.env);
-        //log("spawning",command,cargs,opts);
+        log("spawning",command,cargs,opts);
         const child = child_process.spawn(command, cargs, opts)
+       child.on('error',err => {
+          log("error spawning ",command);
+       })
         const cpid = child.pid
         fs.writeFileSync(paths.join(taskdir,'pid'),''+cpid);
         child.unref();
