@@ -85,6 +85,22 @@ amx edit taskname
 
 This will open up your preferred command line editor as specified by the EDITOR environment variable.
 
+# Change the script type
+
+set type to `node` for nodejs scripts. set it to `npm` to run a script through npm. set it to `exe`
+for a native binary.
+
+# Set command line arguments
+
+set args to an array of strings. ex:
+
+``` json
+{
+  "args": ["--foo", "--bar", "baz.out"]
+}
+
+```
+
 # Set Environment Variables
 
 
