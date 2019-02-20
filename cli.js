@@ -9,15 +9,14 @@ var Tail = require('tail').Tail;
 common.initSetup();
 
 var args = process.argv.slice();
-// console.log("args = ", args);
 if(args.length < 3) return printUsage();
 args.shift();
 args.shift();
 
 
 function spaces(n) {
-    var str = "";
-    for(var i=0; i<n; i++) {
+    let str = "";
+    for(let i=0; i<n; i++) {
         str +=' ';
     }
     return str;
@@ -27,102 +26,112 @@ function pad(str,n) {
     if(str.length < n) return str + spaces(n-str.length);
     return str;
 }
-function printTasks(tasks) {
-    if(tasks.length <= 0) {
-        console.log("no running tasks");
-        return;
+function info(str) {
+    console.log('AMX:',str)
+}
+function error(str) {
+    console.log('AMX ERROR:',str)
+}
+function checkTaskMissing(taskname) {
+    if(!taskname) {
+        error('missing taskname')
+        return true
     }
-    tasks.forEach(function(task) {
-        console.log("task " ,pad(task.name,20), task.running?'running':'stopped', task.pid);
-    });
+    const path = paths.join(common.getConfigDir(),taskname)
+    if(!fs.existsSync(path)) {
+        error(`task '${taskname}' does not exist at ${path}`)
+        return true
+    }
+    return false
+}
+function checkMissingFile(path) {
+    if(!fs.existsSync(path)) {
+        error(`file '${path}' does not exist`)
+        return true
+    }
+    return false
+}
+function doGet(path) {
+    return new Promise((resolve,rej) => {
+        const req = http.request({
+                host: 'localhost',
+                port: common.PORT,
+                method: 'GET',
+                path: path
+            },
+            (res) => {
+                let chunks = ""
+                res.on('data', (data) => chunks += data.toString())
+                res.on('end', () => resolve(JSON.parse(chunks)))
+            }
+        );
+        req.on('error', (e)=> rej(e))
+        req.end()
+    })
+}
+function doPost(path) {
+    return checkRunning().then(()=>{
+        return new Promise((resolve,rej) => {
+            const req = http.request({
+                    host: 'localhost',
+                    port: common.PORT,
+                    method: 'POST',
+                    path: path
+                },
+                (res) => {
+                    let chunks = ""
+                    res.on('data', (data) => chunks += data.toString())
+                    res.on('end', () => resolve(JSON.parse(chunks)))
+                }
+            );
+            req.on('error', (e)=> rej(e))
+            req.end()
+        })
+    })
+}
+
+
+function printTasks(tasks) {
+    if(tasks.length <= 0) return console.log("no running tasks");
+    tasks.forEach(task => console.log("task " ,pad(task.name,20), task.running?'running':'stopped', task.pid));
 }
 
 function listProcesses() {
-    checkRunning(function() {
-        var req = http.request({
-            host:'localhost',
-            port:common.PORT,
-            method:'GET',
-            path:'/list'},
-            function(res) {
-                var chunks = "";
-                res.on('data',function(data) {
-                    chunks += data.toString();
-                });
-                res.on('end', function() {
-                    var obj = JSON.parse(chunks);
-                    printTasks(obj.tasks);
-                });
-            }
-        );
-        req.on('error',function(e) {
-            console.log("error",e);
-        });
-        req.end();
-    });
+    checkRunning()
+        .then(()=> doGet('/list'))
+        .then(data => printTasks(data.tasks))
 }
 
 function stopServer() {
-    checkRunning(function() {
-        console.log("invoking the stop server");
-        var req = http.request({
-            host:'localhost',
-            port:common.PORT,
-            method:'POST',
-            path:'/stopserver'},
-            function(res) {
-                console.log("got stopserver back", res.statusCode);
-                console.log("data = ")
-                var chunks = "";
-                res.on('data',function(data) {
-                    console.log("got some data " + data);
-                    chunks += data.toString();
-                });
-                res.on('end', function() {
-                    console.log("got the end of the data");
-                    var obj = JSON.parse(chunks);
-                    console.log("response = ", obj);
-                });
+    checkRunning()
+        .then(() => doPost('/stopserver'))
+        .then(data => console.log("response = ", data))
+}
+
+function checkRunning() {
+    return new Promise((res,rej) => {
+        const req = http.request({
+                host:'localhost',
+                port:common.PORT,
+                method:'GET',
+                path:'/status'},
+            (response => res(response)))
+        req.on('error',e=> {
+            if(e.code === 'ECONNREFUSED') {
+                info("can't connect to server. starting")
+                setTimeout(() =>res(),1000)
+                return startServer();
             }
-        );
-        req.on('error',function(e) {
-            console.log("error",e);
         });
         req.end();
-    });
+    })
 }
-
-function checkRunning(cb) {
-    // console.log("invoking quick status test");
-    var req = http.request({
-        host:'localhost',
-        port:common.PORT,
-        method:'GET',
-        path:'/status'},
-        function(res){
-            // console.log("status is",res.statusCode);
-            cb();
-        });
-    req.on('error',function(e) {
-        //console.log("error",e);
-        if(e.code == 'ECONNREFUSED') {
-            console.log("the server hasn't started yet");
-            setTimeout(function() {
-                console.log("the server should be started now");
-                cb();
-            },1000);
-            return startServer();
-        }
-    });
-    req.end();
-}
-
 
 function startServer() {
-    console.log('starting the server ', __dirname);
-    out = fs.openSync(__dirname+'/out.log', 'a'),
-    err = fs.openSync(__dirname+'/out.log', 'a');
-    var child = ch.spawn("node",[__dirname+'/server.js'],{detached:true, stdio:['ignore',out,err]});
+    console.log('starting the server ', __dirname)
+    const out = fs.openSync(__dirname+'/out.log', 'a')
+    const err = fs.openSync(__dirname+'/out.log', 'a')
+    const child = ch.spawn("node",[__dirname+'/server.js'],{detached:true, stdio:['ignore',out,err]})
     child.unref();
 }
 
@@ -154,7 +163,7 @@ function printUsage() {
 }
 
 
-var CONFIG_TEMPLATE = {
+const CONFIG_TEMPLATE = {
     name:"unnamed task",
     directory:"directory of your files",
     type:'node',
@@ -162,80 +171,44 @@ var CONFIG_TEMPLATE = {
 };
 
 function makeTask(args) {
-    var taskname = args.shift();
-    console.log("making the task",taskname);
+    const taskname = args.shift()
+    info("making the task",taskname);
     if(!taskname) return printUsage();
-    var procpath = paths.join(common.getConfigDir(),taskname);
+    const procpath = paths.join(common.getConfigDir(), taskname)
     if(!fs.existsSync(procpath)) fs.mkdirSync(procpath);
-    console.log("made dir",procpath);
-    var confpath = paths.join(procpath,'config.json');
-    var config = JSON.parse(JSON.stringify(CONFIG_TEMPLATE));
+    info("made dir",procpath);
+    const confpath = paths.join(procpath, 'config.json')
+    const config = JSON.parse(JSON.stringify(CONFIG_TEMPLATE))
     config.name = taskname;
 
     if(args.length > 0) {
-        var script = args[0];
-        config.script = script;
+        config.script = args[0];
         config.directory = process.cwd();
     }
-    console.log("generating ");
-    console.log(JSON.stringify(config,null,'    '));
+    info("generating ");
+    info(JSON.stringify(config,null,'    '));
     fs.writeFileSync(confpath,JSON.stringify(config,null,'    '));
 
-    console.log("edit the config file",confpath);
-    console.log("then run amx start",taskname);
-}
-
-function doPost(path,cb) {
-    checkRunning(function() {
-        var req = http.request({
-            host:'localhost',
-            port:common.PORT,
-            method:'POST',
-            path:path},
-            function(res) {
-                var chunks = "";
-                res.on('data',function(data) {
-                    chunks += data.toString();
-                });
-                res.on('end', function() {
-                    var obj = JSON.parse(chunks);
-                    cb(null,obj);
-                });
-            }
-        );
-        req.on('error',function(e) {
-            console.log("error",e);
-            cb(e);
-        });
-        req.end();
-    });
+    info("edit the config file",confpath);
+    info("then run: amx start ",taskname);
 }
 
 function startTask(args) {
-    var taskname = args[0];
-    console.log("starting the task",taskname);
-    doPost("/start?task="+taskname, function(e,res) {
-        // console.log("error = ",e);
-        console.log("res = ", res);
-    });
+    const taskname = args[0]
+    info(`starting the task '${taskname}'`)
+    doPost("/start?task="+taskname).then(res => console.log(res))
 }
 
 function stopTask(args) {
-    var taskname = args[0];
-    console.log("stopping the task",taskname);
-    doPost("/stop?task="+taskname,function(e,res){
-        // console.log("error = ",e);
-        console.log("res = ", res);
-    });
+    const taskname = args[0]
+    info(`stopping the task '${taskname}'`);
+    doPost("/stop?task="+taskname).then(res => console.log(res))
 }
 
 function restartTask(args) {
-    var taskname = args[0];
-    console.log("restarting the task",taskname);
-    doPost("/restart?task="+taskname,function(e,res){
-        // console.log("error = ",e);
-        console.log("res = ", res);
-    });
+    const taskname = args[0]
+    info(`restarting the task ${taskname}`);
+    doPost("/restart?task="+taskname).then(res => console.log(res))
 }
 
 function recursiveDeleteDir(str) {
@@ -252,75 +225,64 @@ function recursiveDeleteDir(str) {
 }
 
 function removeTask(args) {
-    var taskname = args[0];
-    console.log("removing the task",taskname);
-    doPost("/stop?task="+taskname,function(e,res){
-        console.log("res = ", res);
-        console.log("now to delete it");
-        recursiveDeleteDir(paths.join(common.getConfigDir(),taskname));
-        console.log("done");
-    });
+    const taskname = args[0]
+    info(`removing the task ${taskname}`)
+    if(checkTaskMissing(taskname)) return
+    doPost("/stop?task="+taskname).then(() => recursiveDeleteDir(paths.join(common.getConfigDir(),taskname)))
 }
 
 function logTask(args) {
-    var taskname = args[0];
-    if(!taskname) return console.log("ERROR: missing taskname");
-    fs.createReadStream(paths.join(common.getConfigDir(),taskname,'stdout.log')).pipe(process.stdout);
+    const taskname = args[0]
+    if(checkTaskMissing(taskname)) return
+    const logPath = paths.join(common.getConfigDir(),taskname,'stdout.log')
+    if(checkMissingFile(logPath)) return
+    fs.createReadStream(logPath).pipe(process.stdout);
 }
 
 function followTask(args) {
-    var taskname = args[0];
-    if(!taskname) return console.log("ERROR: missing taskname");
-    var stdoutTail = new Tail(paths.join(common.getConfigDir(),taskname,'stdout.log'));
-    stdoutTail.on('line', function(data) {
-        console.log(data)
-    })
-    stdoutTail.on('error', function(data) {
-        console.log('ERROR:',data)
-    })
-    var stderrTail = new Tail(paths.join(common.getConfigDir(),taskname,'stderr.log'));
-    stderrTail.on('line', function(data) {
-        console.log(data)
-    })
-    stderrTail.on('error', function(data) {
-        console.log('ERROR:',data)
-    })
+    const taskname = args[0]
+    if(checkTaskMissing(taskname)) return
+    const outPath = paths.join(common.getConfigDir(),taskname,'stdout.log')
+    if(checkMissingFile(outPath)) return
+    const errPath = paths.join(common.getConfigDir(),taskname,'stderr.log')
+    if(checkMissingFile(errPath)) return
+    const stdoutTail = new Tail(outPath)
+    stdoutTail.on('line', (data) => console.log(data))
+    stdoutTail.on('error', (data) => console.log('ERROR:',data))
+    const stderrTail = new Tail(errPath)
+    stderrTail.on('line', (data) => console.log(data))
+    stderrTail.on('error', (data) => console.log('ERROR:',data))
 }
 
 function infoTask(args) {
-    var taskname = args[0];
-    if(!taskname) return console.log("ERROR: missing taskname");
-    var config = paths.join(common.getConfigDir(),taskname,'config.json');
+    const taskname = args[0]
+    if(checkTaskMissing(taskname)) return
+    const config = paths.join(common.getConfigDir(), taskname, 'config.json')
     fs.createReadStream(config).pipe(process.stdout);
 }
 
 function printVersion() {
-    var pkg = JSON.parse(fs.readFileSync(paths.join(__dirname,"package.json")).toString());
-    console.log(pkg.version);
+    info(JSON.parse(fs.readFileSync(paths.join(__dirname, "package.json")).toString()).version)
 }
 
 function selfStatus() {
-    console.log("AMX");
+    info("AMX");
     printVersion();
-    console.log("Config", paths.join(common.getRootDir(),'config.json'));
-    console.log(JSON.stringify(common.getConfig(),null,'    '));
-    console.log("server on port ", common.PORT);
-    console.log("process descriptions", common.getConfigDir());
+    info("Config", paths.join(common.getRootDir(),'config.json'));
+    info(JSON.stringify(common.getConfig(),null,'    '));
+    info("server on port ", common.PORT);
+    info("process descriptions", common.getConfigDir());
 }
 
-function spawnEditor(editorpath, file, cb) {
-    var vim = ch.spawn( editorpath, [file], {
-        stdio:'inherit'
-    });
-    vim.on('exit', function(code) {
-        if(cb) cb(code);
-    });
+function spawnEditor(editorpath, file) {
+    const vim = ch.spawn(editorpath, [file], { stdio: 'inherit' })
+    vim.on('exit', code => info(`done editing ${file}`))
 }
 
 function editTask(args) {
-    var taskname = args[0];
+    const taskname = args[0]
     if(!taskname) return console.log("ERROR: missing taskname");
-    var config = paths.join(common.getConfigDir(),taskname,'config.json');
+    const config = paths.join(common.getConfigDir(), taskname, 'config.json')
     if(process.env.EDITOR) {
         console.log("launching the editor", process.env.EDITOR);
         return spawnEditor(process.env.EDITOR,config);
@@ -330,16 +292,16 @@ function editTask(args) {
             if(err && err.code == 1) {
                 return ch.exec('which vi',function(err,stdout,stderr) {
                     if (err && err.code == 1) return console.log("no valid editor not found. please set the EDITOR variable");
-                    spawnEditor(stdout.trim(),config);
+                    return spawnEditor(stdout.trim(),config);
                 });
             }
-            spawnEditor(stdout.trim(),config);
+            return spawnEditor(stdout.trim(),config);
         });
     }
 }
 
 
-var commands = {
+const commands = {
     'list': listProcesses,
     'stopserver':stopServer,
     'make':makeTask,
@@ -356,11 +318,8 @@ var commands = {
 };
 
 function runCommand() {
-    var command = args.shift();
-
-    if(commands[command]) {
-        return commands[command](args);
-    }
+    const command = args.shift()
+    if(commands[command]) return commands[command](args);
     console.log("no such command: " + command);
     return printUsage();
 }
