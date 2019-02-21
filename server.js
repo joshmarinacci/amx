@@ -1,15 +1,15 @@
-var common = require('./common');
-var paths = require('path');
-var fs    = require('fs');
-var http  = require('http');
-var child_process = require('child_process');
-var util  = require('util');
+const common = require('./common')
+const paths = require('path')
+const fs = require('fs')
+const http = require('http')
+const child_process = require('child_process')
+const util = require('util')
 const URL = require('url')
 
 common.initSetup();
 
-var path = paths.join(common.getRootDir(),'status.log');
-var logger;
+const path = paths.join(common.getRootDir(), 'status.log')
+let logger
 try {
     fs.accessSync(path, fs.W_OK);
     logger = fs.createWriteStream(path, { flags: 'r+'});
@@ -18,36 +18,35 @@ try {
 }
 
 function log() {
-    var args = Array.prototype.slice.call(arguments,0);
-    var str = new Date().getTime() + ": " + args.map(function(a) { return util.inspect(a); }).join(" ")+"\n";
+    const args = Array.prototype.slice.call(arguments, 0)
+    const str = new Date().getTime() + ": " + args.map((a) => util.inspect(a)).join(" ") + "\n"
     console.log(str);
     logger.write(str);
 }
-var sendEmail = function() {};
+let sendEmail = function() {};
 
-var config = common.getConfig();
+const config = common.getConfig()
 console.log("config is",config);
 
 function alert() {
-    var args = Array.prototype.slice.call(arguments,0);
-    var str = new Date().getTime() + ": " + args.map(function(a) { return util.inspect(a); }).join(" ")+"\n";
+    const args = Array.prototype.slice.call(arguments, 0)
+    const str = new Date().getTime() + ": " + args.map(a => util.inspect(a)).join(" ") + "\n"
     console.log('sending an alert', str);
     sendEmail(str);
 }
 
-if(config.alerts &&
-   config.alerts.email) {
+if(config.alerts && config.alerts.email) {
     sendEmail = function(text) {
-        var nodemailer = require('nodemailer');
-        var transporter = nodemailer.createTransport(config.alerts.email.transport);
-        var opts = {
+        const nodemailer = require('nodemailer')
+        const transporter = nodemailer.createTransport(config.alerts.email.transport)
+        const opts = {
             from: config.alerts.email.from,
             to: config.alerts.email.to,
             subject: "AMX Alert",
             text: "alert:\n" + text,
-        };
+        }
 
-        transporter.sendMail(opts, function(err,info) {
+        transporter.sendMail(opts, (err,info) => {
             if(err) return console.log(err);
             console.log('sent', info.response);
         });
@@ -57,7 +56,7 @@ if(config.alerts &&
 
 log("AMX server starting on port ", common.PORT,"with process",process.pid);
 
-var task_map = {};
+const task_map = {};
 function getTaskRestartInfo(taskname) {
     if(!task_map[taskname]) { task_map[taskname] = { restart_times:[], enabled:true } }
     return task_map[taskname];
@@ -81,7 +80,7 @@ function SUCCESS(res,str) {
 
 function listProcesses(cb) {
     return new Promise((res,rej) => {
-        child_process.exec('ps ax -o pid=',function(err,stdout,stderr){
+        child_process.exec('ps ax -o pid=',(err,stdout) => {
             let lines = stdout.split('\n');
             lines = lines.map((line) =>parseInt(line))
             lines = lines.filter((line) => !isNaN(line))
@@ -95,6 +94,7 @@ function parseTaskName(req) {
 }
 
 function taskExists(task) {
+    if(!task) return false
     return fs.existsSync(paths.join(common.getConfigDir(), task))
 }
 
@@ -118,18 +118,17 @@ function stopTask(task, cb) {
 }
 
 function getTaskConfig(task) {
-    var taskdir = paths.join(common.getConfigDir(),task);
-    var config_file = paths.join(taskdir,'config.json');
-    var config = JSON.parse(fs.readFileSync(config_file).toString());
-    return config;
+    const taskdir = paths.join(common.getConfigDir(), task)
+    const config_file = paths.join(taskdir, 'config.json')
+    return JSON.parse(fs.readFileSync(config_file).toString())
 }
 
 function updateTask(task, cb) {
-    var config = getTaskConfig(task);
+    const config = getTaskConfig(task)
     log("config = ", config);
-    var out = child_process.execSync("git pull ",{cwd:config.directory});;
+    let out = child_process.execSync("git pull ", {cwd: config.directory})
     log("git pull output = ", out.toString());
-    var out = child_process.execSync("npm install ",{cwd:config.directory});;
+    out = child_process.execSync("npm install ", {cwd: config.directory})
     log("npm install output = ", out.toString());
     cb(null);
 }
@@ -189,33 +188,30 @@ function startTask(task, cb) {
 }
 
 function parseJsonPost(req,cb) {
-    var chunks = "";
+    let chunks = ""
     req.on('data',function(data) { chunks += data.toString(); });
     req.on('end', function() { cb(null,JSON.parse(chunks)); });
-};
+}
 
 var handlers = {
-    '/status': function(req,res) {
+    '/status': (req,res) => {
         res.statusCode = 200;
         res.setHeader('Content-Type','text/json');
         res.write(JSON.stringify({'status':'alive'}));
         res.end();
     },
-    '/list': function(req,res) {
+    '/list': (req,res) => {
         listProcesses().then(pids => {
             res.statusCode = 200;
-            var list = fs.readdirSync(common.getConfigDir());
+            const list = fs.readdirSync(common.getConfigDir())
             res.setHeader('Content-Type','text/json');
-            var tasks = list.map(function(name) {
+            var tasks = list.map((name) => {
                 let running = false
-                const dir = paths.join(common.getConfigDir(), name)
                 const pid = getTaskPid(name)
-                if(pids.indexOf(pid)>=0) {
-                    running = true;
-                }
+                if(pids.indexOf(pid)>=0) running = true;
                 return {
                     name:name,
-                    path:dir,
+                    path:paths.join(common.getConfigDir(), name),
                     running: running,
                     pid: pid
                 }
@@ -226,7 +222,6 @@ var handlers = {
     },
     '/stop': (req,res) => {
         const task = parseTaskName(req);
-        if(!task) return ERROR(res,"no task specified");
         if(!taskExists(task)) return ERROR(res,"no such task " + task);
         return stopTask(task)
             .then(()=> SUCCESS(res,"successfully killed " + task))
@@ -234,7 +229,6 @@ var handlers = {
     },
     '/start': function(req,res) {
         const task = parseTaskName(req);
-        if(!task) return ERROR(res,"no task specified");
         if(!taskExists(task)) return ERROR(res,"no such task " + task);
         startTask(task)
             .then(cpid => SUCCESS(res,"started task " + task + cpid))
@@ -242,7 +236,6 @@ var handlers = {
     },
     '/restart':function(req,res) {
         const task = parseTaskName(req);
-        if(!task) return ERROR(res,"no task specified");
         if(!taskExists(task)) return ERROR(res,"no such task " + task);
         stopTask(task)
             .then(()=> startTask(task))
@@ -251,7 +244,7 @@ var handlers = {
     },
     '/stopserver':function(req,res) {
         SUCCESS(res,"stopping the server");
-        setTimeout(function(){ process.exit(-1); },100);
+        setTimeout(() => process.exit(-1),100);
     },
     '/rescan':function(req,res) {
         const task = parseTaskName(req);
@@ -289,11 +282,8 @@ http.createServer(function(req,res) {
     const parts = URL.parse(req.url)
     log("parts = ", parts);
     if(handlers[parts.pathname]) return handlers[parts.pathname](req,res);
-    if(parts.pathname.indexOf('/webhook')>=0) {
-	    return handlers['/webhook'](req,res);
-    }
+    if(parts.pathname.indexOf('/webhook')>=0) return handlers['/webhook'](req,res);
     log("no handler");
-
     res.statusCode = 200;
     res.setHeader('Content-Type','text/json');
     res.write(JSON.stringify({'status':'alive'}));
@@ -305,7 +295,7 @@ http.createServer(function(req,res) {
 
 
 function restartCrashedTask(taskname) {
-    var task_info = getTaskRestartInfo(taskname);
+    const task_info = getTaskRestartInfo(taskname)
     if(task_info.enabled === false) return;
 
     //stop if restarted more than five times in last 60 seconds
