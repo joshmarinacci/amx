@@ -143,6 +143,14 @@ event push will make it check out and update on every 'push' event.
 Code will be checked out to the 'directory' directory.
 
 
+# archive a task
+
+Run `amx archive taskname` to mark a task as archived. If the task was already running you will still need to stop it as well.
+
+# un-archive a task
+
+Run `amx unarchive taskname` to mark a task as not archived. If the task was stopped you will still need to start it as well.
+
 
 
 
