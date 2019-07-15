@@ -152,6 +152,10 @@ function printUsage() {
     console.log("      print logfile for a task");
     console.log("amx follow <taskname>");
     console.log("      watch for new lines in the logfiles of the task");
+    console.log("amx archive <taskname>");
+    console.log("      mark task as archived so it won't be auto run. Does not actually stop it.");
+    console.log("amx unarchive <taskname>");
+    console.log("      mark archived task as unarchived so it can be auto run. Does not actually start it.");
     console.log("amx list");
     console.log("      list all tasks")
     console.log("amx stopserver");
@@ -224,11 +228,26 @@ function recursiveDeleteDir(str) {
     }
 }
 
-function removeTask(args) {
+function archiveTask(args) {
     const taskname = args[0]
-    info(`removing the task ${taskname}`)
+    info(`archiving the task ${taskname}`)
     if(checkTaskMissing(taskname)) return
-    doPost("/stop?task="+taskname).then(() => recursiveDeleteDir(paths.join(common.getConfigDir(),taskname)))
+    const config = paths.join(common.getConfigDir(), taskname, 'config.json')
+    const json = JSON.parse(fs.readFileSync(config))
+    json.archived = true
+    fs.writeFileSync(config,JSON.stringify(json,null,"   "))
+    console.log("wrote",JSON.parse(fs.readFileSync(config)))
+}
+
+function unarchiveTask(args) {
+    const taskname = args[0]
+    info(`archiving the task ${taskname}`)
+    if(checkTaskMissing(taskname)) return
+    const config = paths.join(common.getConfigDir(), taskname, 'config.json')
+    const json = JSON.parse(fs.readFileSync(config))
+    json.archived = false
+    fs.writeFileSync(config,JSON.stringify(json,null,"   "))
+    console.log("wrote",JSON.parse(fs.readFileSync(config)))
 }
 
 function logTask(args) {
@@ -308,7 +327,8 @@ const commands = {
     'start':startTask,
     'stop':stopTask,
     'restart':restartTask,
-    'remove':removeTask,
+    'archive':archiveTask,
+    'unarchive':unarchiveTask,
     'log':logTask,
     'info':infoTask,
     'version':printVersion,

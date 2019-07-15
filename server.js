@@ -144,6 +144,12 @@ function startTask(task, cb) {
     const pid = getTaskPid(task)
     log("trying to start", task);
     getTaskRestartInfo(task).enabled = true;
+    const info = getTaskConfig(task)
+    if(info.archived === true) {
+        console.log("the task is archived")
+        getTaskRestartInfo(task).enabled = false;
+        return Promise.resolve(-1)
+    }
     return listProcesses().then(pids => {
         if(pids.indexOf(pid)>=0)  throw new Error(`task is already running: ${task} ${pid}`);
 
@@ -280,7 +286,7 @@ var handlers = {
 
 http.createServer(function(req,res) {
     const parts = URL.parse(req.url)
-    log("parts = ", parts);
+    log(parts.path);
     if(handlers[parts.pathname]) return handlers[parts.pathname](req,res);
     if(parts.pathname.indexOf('/webhook')>=0) return handlers['/webhook'](req,res);
     log("no handler");
