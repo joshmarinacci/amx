@@ -13,6 +13,20 @@ let logger
 try {
     fs.accessSync(path, fs.W_OK);
     logger = fs.createWriteStream(path, { flags: 'r+'});
+    logger.on('close',()=>{
+        console.log("the logger has closed")
+    })
+    logger.on("open",()=>{
+        console.log("the logger is open for business")
+    })
+    logger.on("ready",()=>{
+        console.log("the logger is ready for business")
+    })
+    logger.on("error",()=>{
+        console.log("the logger got an error")
+    })
+    logger.write("=== starting up a log\n")
+    console.log("writing to the logger",logger)
 } catch(e) {
     logger = fs.createWriteStream(path, { flags: 'w'});
 }
@@ -27,6 +41,7 @@ let sendEmail = function() {};
 
 const config = common.getConfig()
 log("config is",config);
+log("writing to",path)
 
 function alert() {
     const args = Array.prototype.slice.call(arguments, 0)
@@ -138,6 +153,46 @@ function copyInto(src,dst) {
     }
 }
 
+function reallyStartTask(task,cb) {
+    const taskdir = paths.join(common.getConfigDir(), task)
+    const config = JSON.parse(fs.readFileSync(paths.join(taskdir, 'config.json')).toString())
+    if(!fs.existsSync(config.directory)) throw new Error("directory does not exist " + config.directory)
+    let cargs = []
+    let command = null
+    if(config.type === 'npm')  {
+        cargs = ['run',config.script];
+        command = 'npm';
+    }
+    if(config.type === 'node') {
+        cargs = [config.script];
+        command = 'node';
+    }
+    if(config.type === 'exe') {
+        cargs = []
+        if(config.args) cargs = config.args
+        command = config.script
+    }
+    if(command === null) throw new Error("unknown script type " + config.type)
+    const opts = {
+        cwd:config.directory,
+        detached:true,
+        stdio:[
+            'ignore',
+            fs.openSync(paths.join(taskdir, 'stdout.log'), 'a'),  // Standard Out
+            fs.openSync(paths.join(taskdir, 'stderr.log'), 'a'),  // Standard Error
+        ],
+        env: {}
+    };
+    copyInto(process.env,opts.env);
+    if(config.env) copyInto(config.env,opts.env);
+    log("spawning",command,cargs,opts);
+    const child = child_process.spawn(command, cargs, opts)
+    child.on('error',err => log("error spawning ",command))
+    fs.writeFileSync(paths.join(taskdir,'pid'),''+child.pid);
+    child.unref();
+    return child.pid
+}
+
 function startTask(task, cb) {
     const pid = getTaskPid(task)
     log("trying to start", task);
@@ -148,46 +203,13 @@ function startTask(task, cb) {
         getTaskRestartInfo(task).enabled = false;
         return Promise.resolve(-1)
     }
+    if(info.runOnce === true) {
+        log("only run the task once")
+        getTaskRestartInfo(task).enabled = false;
+    }
     return listProcesses().then(pids => {
         if(pids.indexOf(pid)>=0)  throw new Error(`task is already running: ${task} ${pid}`);
-
-        const taskdir = paths.join(common.getConfigDir(), task)
-        const config = JSON.parse(fs.readFileSync(paths.join(taskdir, 'config.json')).toString())
-        if(!fs.existsSync(config.directory)) throw new Error("directory does not exist " + config.directory)
-        let cargs = []
-        let command = null
-        if(config.type === 'npm')  {
-            cargs = ['run',config.script];
-            command = 'npm';
-        }
-        if(config.type === 'node') {
-            cargs = [config.script];
-            command = 'node';
-        }
-        if(config.type === 'exe') {
-            cargs = []
-            if(config.args) cargs = config.args
-            command = config.script
-        }
-        if(command === null) throw new Error("unknown script type " + config.type)
-        const opts = {
-            cwd:config.directory,
-            detached:true,
-            stdio:[
-                'ignore',
-                fs.openSync(paths.join(taskdir, 'stdout.log'), 'a'),  // Standard Out
-                fs.openSync(paths.join(taskdir, 'stderr.log'), 'a'),  // Standard Error
-            ],
-            env: {}
-        };
-        copyInto(process.env,opts.env);
-        if(config.env) copyInto(config.env,opts.env);
-        // log("spawning",command,cargs,opts);
-        const child = child_process.spawn(command, cargs, opts)
-        child.on('error',err => log("error spawning ",command))
-        fs.writeFileSync(paths.join(taskdir,'pid'),''+child.pid);
-        child.unref();
-        return child.pid
+        reallyStartTask(task,cb)
     });
 }
 
