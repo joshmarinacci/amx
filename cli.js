@@ -26,11 +26,13 @@ function pad(str,n) {
     if(str.length < n) return str + spaces(n-str.length);
     return str;
 }
-function info(str) {
-    console.log('AMX:',str)
+function info() {
+    const args = Array.prototype.slice.call(arguments, 0)
+    console.log('AMX:',args.join(" "))
 }
-function error(str) {
-    console.log('AMX ERROR:',str)
+function error() {
+    const args = Array.prototype.slice.call(arguments, 0)
+    console.log('AMX ERROR:',args.join(" "))
 }
 function checkTaskMissing(taskname) {
     if(!taskname) {

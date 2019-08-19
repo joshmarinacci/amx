@@ -26,12 +26,12 @@ function log() {
 let sendEmail = function() {};
 
 const config = common.getConfig()
-console.log("config is",config);
+log("config is",config);
 
 function alert() {
     const args = Array.prototype.slice.call(arguments, 0)
     const str = new Date().getTime() + ": " + args.map(a => util.inspect(a)).join(" ") + "\n"
-    console.log('sending an alert', str);
+    log('sending an alert', str);
     sendEmail(str);
 }
 
@@ -48,11 +48,10 @@ if(config.alerts && config.alerts.email) {
 
         transporter.sendMail(opts, (err,info) => {
             if(err) return console.log(err);
-            console.log('sent', info.response);
+            log('sent', info.response);
         });
     }
 }
-
 
 log("AMX server starting on port ", common.PORT,"with process",process.pid);
 
@@ -69,6 +68,7 @@ function ERROR(res,str) {
     res.write(JSON.stringify({status:'error','message':str}));
     res.end();
 }
+
 function SUCCESS(res,str) {
     log("SUCCESS",str);
     res.statusCode = 200;
@@ -76,7 +76,6 @@ function SUCCESS(res,str) {
     res.write(JSON.stringify({status:'success','message':str}));
     res.end();
 }
-
 
 function listProcesses(cb) {
     return new Promise((res,rej) => {
@@ -139,14 +138,13 @@ function copyInto(src,dst) {
     }
 }
 
-
 function startTask(task, cb) {
     const pid = getTaskPid(task)
     log("trying to start", task);
     getTaskRestartInfo(task).enabled = true;
     const info = getTaskConfig(task)
     if(info.archived === true) {
-        console.log("the task is archived")
+        log("the task is archived")
         getTaskRestartInfo(task).enabled = false;
         return Promise.resolve(-1)
     }
@@ -199,7 +197,7 @@ function parseJsonPost(req,cb) {
     req.on('end', function() { cb(null,JSON.parse(chunks)); });
 }
 
-var handlers = {
+const handlers = {
     '/status': (req,res) => {
         res.statusCode = 200;
         res.setHeader('Content-Type','text/json');
@@ -211,11 +209,9 @@ var handlers = {
             res.statusCode = 200;
             const list = fs.readdirSync(common.getConfigDir())
             res.setHeader('Content-Type','text/json');
-            console.log("getting stuff",list)
             let configproms = list.map((name) => getTaskConfig(name))
             Promise.all(configproms).then(configs => {
                 let tasks = configs.map(config => {
-                    console.log("config",config)
                     let running = false
                     const pid = getTaskPid(config.name)
                     if(pids.indexOf(pid)>=0) running = true;
