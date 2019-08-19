@@ -12,7 +12,7 @@ const path = paths.join(common.getRootDir(), 'status.log')
 let logger
 try {
     fs.accessSync(path, fs.W_OK);
-    logger = fs.createWriteStream(path, { flags: 'r+'});
+    logger = fs.createWriteStream(path, { flags: 'a+'});
     logger.on('close',()=>{
         console.log("the logger has closed")
     })
