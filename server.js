@@ -211,19 +211,25 @@ var handlers = {
             res.statusCode = 200;
             const list = fs.readdirSync(common.getConfigDir())
             res.setHeader('Content-Type','text/json');
-            var tasks = list.map((name) => {
-                let running = false
-                const pid = getTaskPid(name)
-                if(pids.indexOf(pid)>=0) running = true;
-                return {
-                    name:name,
-                    path:paths.join(common.getConfigDir(), name),
-                    running: running,
-                    pid: pid
-                }
-            });
-            res.write(JSON.stringify({'count':tasks.length,tasks:tasks}));
-            res.end();
+            console.log("getting stuff",list)
+            let configproms = list.map((name) => getTaskConfig(name))
+            Promise.all(configproms).then(configs => {
+                let tasks = configs.map(config => {
+                    console.log("config",config)
+                    let running = false
+                    const pid = getTaskPid(config.name)
+                    if(pids.indexOf(pid)>=0) running = true;
+                    return {
+                        name:config.name,
+                        path:paths.join(common.getConfigDir(), config.name),
+                        running: running,
+                        pid: pid,
+                        archived: config.archived,
+                    }
+                })
+                res.write(JSON.stringify({'count':tasks.length,tasks:tasks}));
+                res.end();
+            })
         });
     },
     '/stop': (req,res) => {

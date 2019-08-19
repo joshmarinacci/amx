@@ -93,7 +93,7 @@ function doPost(path) {
 
 function printTasks(tasks) {
     if(tasks.length <= 0) return console.log("no running tasks");
-    tasks.forEach(task => console.log("task " ,pad(task.name,20), task.running?'running':'stopped', task.pid));
+    tasks.forEach(task => console.log("task " ,pad(task.name,20), task.running?'running':'stopped', task.pid, task.archived?'archived':'active'));
 }
 
 function listProcesses() {
