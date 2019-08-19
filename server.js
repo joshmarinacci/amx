@@ -325,6 +325,8 @@ http.createServer(function(req,res) {
 
 
 function restartCrashedTask(taskname) {
+    const info = getTaskConfig(taskname)
+    if(info.archived === true) return false
     const task_info = getTaskRestartInfo(taskname)
     if(task_info.enabled === false) return;
 
@@ -360,4 +362,4 @@ function scanProcesses() {
     });
 }
 
-setInterval(scanProcesses,500);
+setInterval(scanProcesses,5000);
