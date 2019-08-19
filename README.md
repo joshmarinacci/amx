@@ -217,3 +217,9 @@ server on port  48999
 process descriptions /Users/josh/.amx/procs
 ```
 
+
+# update AMX to a new version
+
+```
+npm install -g amx
+```
