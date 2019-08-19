@@ -92,7 +92,16 @@ This will open up your preferred command line editor as specified by the EDITOR 
 # Change the script type
 
 set type to `node` for nodejs scripts. set it to `npm` to run a script through npm. set it to `exe`
-for a native binary.
+for a native binary. For example the following is equivalent to `npm run build`
+
+```json
+{
+   "name": "my-task",
+   "directory":"some-dir",
+   "type": "npm",
+   "script": "build"
+}
+``` 
 
 # Set command line arguments
 
