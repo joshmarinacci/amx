@@ -203,13 +203,13 @@ function startTask(task, cb) {
         getTaskRestartInfo(task).enabled = false;
         return Promise.resolve(-1)
     }
-    if(info.runOnce === true) {
+    if('restart' in info && info.restart === false) {
         log("only run the task once")
         getTaskRestartInfo(task).enabled = false;
     }
     return listProcesses().then(pids => {
         if(pids.indexOf(pid)>=0)  throw new Error(`task is already running: ${task} ${pid}`);
-        reallyStartTask(task,cb)
+        return reallyStartTask(task,cb)
     });
 }
 
@@ -261,7 +261,7 @@ const handlers = {
         const task = parseTaskName(req);
         if(!taskExists(task)) return ERROR(res,"no such task " + task);
         startTask(task)
-            .then(cpid => SUCCESS(res,"started task " + task + cpid))
+            .then(cpid => SUCCESS(res,"started task " + task + ' ' +cpid))
             .catch(err => ERROR(res,"error"+err));
     },
     '/restart':function(req,res) {
@@ -329,6 +329,7 @@ function restartCrashedTask(taskname) {
     if(info.archived === true) return false
     const task_info = getTaskRestartInfo(taskname)
     if(task_info.enabled === false) return;
+    if('restart' in info && info.restart === false) return
 
     //stop if restarted more than five times in last 60 seconds
     if(task_info.restart_times.length > 5) {
