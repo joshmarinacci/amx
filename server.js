@@ -5,6 +5,8 @@ const http = require('http')
 const child_process = require('child_process')
 const util = require('util')
 const URL = require('url')
+const crypto = require('crypto');
+const assert = require('assert');
 
 common.initSetup();
 
@@ -140,6 +142,7 @@ function getTaskConfig(task) {
 function updateTask(task, cb) {
     const config = getTaskConfig(task)
     log("config = ", config);
+    log("invoking git in dir",config.directory)
     let out = child_process.execSync("git pull ", {cwd: config.directory})
     log("git pull output = ", out.toString());
     out = child_process.execSync("npm install ", {cwd: config.directory})
@@ -185,7 +188,7 @@ function reallyStartTask(task,cb) {
     };
     copyInto(process.env,opts.env);
     if(config.env) copyInto(config.env,opts.env);
-    log("spawning",command,cargs,opts);
+    log("spawning",command,cargs/*,opts*/);
     const child = child_process.spawn(command, cargs, opts)
     child.on('error',err => log("error spawning ",command))
     fs.writeFileSync(paths.join(taskdir,'pid'),''+child.pid);
@@ -213,11 +216,12 @@ function startTask(task, cb) {
     });
 }
 
-function parseJsonPost(req,cb) {
+function parsePost(req,cb) {
     let chunks = ""
     req.on('data',function(data) { chunks += data.toString(); });
-    req.on('end', function() { cb(null,JSON.parse(chunks)); });
+    req.on('end', function() { cb(null,chunks); });
 }
+
 
 const handlers = {
     '/status': (req,res) => {
@@ -285,20 +289,20 @@ const handlers = {
         const parts = URL.parse(req.url)
         log("path = ",parts.pathname);
         log("headers = ", req.headers);
-        const taskname = parts.pathname.substring('/webhook'.length)
+        const taskname = parts.pathname.substring('/webhook/'.length)
         log("taskname = ", taskname);
-        parseJsonPost(req,function(err, payload) {
+        const config = getTaskConfig(taskname)
+        if(!config.watch) return ERROR(res, "task not configured for watching");
+        parsePost(req,function(err, payload) {
+            if(!validateSecret(payload,config,req.headers)) return ERROR(res,"webhook validation failed")
             const task = taskname
-            if(!taskExists(task)) return ERROR(res,"no such task " + task);
-            const secret = payload.secret
-            const config = getTaskConfig(task)
-            if(!config.watch) return ERROR(res, "task not configured for watching");
+            if(!taskExists(task)) return ERROR(res,"no such task " + taskname);
             log("got the webhook to refresh the process");
-            stopTask(task).then(()=>{
+            stopTask(taskname).then(()=>{
                 log("task is stopped");
-                updateTask(task, function() {
+                updateTask(taskname, function() {
                     log("task is updated");
-                    startTask(task).then(() =>{
+                    startTask(taskname).then(() =>{
                         log("task is started");
                         return SUCCESS(res,"got the webhook");
                     });
@@ -364,3 +368,30 @@ function scanProcesses() {
 }
 
 setInterval(scanProcesses,5000);
+
+function validateSecret(payload, config, headers) {
+    log("config for task is",config)
+    // log('the raw payload is',payload)
+    try {
+        const buffer = Buffer.from(payload)
+        log("bufer is", buffer)
+        const sig = signBody('sha1', config.watch.secret, buffer)
+        log("the signature is", sig)
+        log("matching header is",headers['x-hub-signature'])
+        if(sig === headers['x-hub-signature']) {
+            return true
+        }
+        return false
+    } catch (e) {
+        log("soem weird error",e)
+        return false
+    }
+}
+
+function signBody(algorithm, secret, buffer) {
+    assert(secret, 'Secret is required');
+    assert(algorithm, 'Algorithm is required');
+    const hmac = crypto.createHmac(algorithm, secret);
+    hmac.update(buffer, 'utf-8');
+    return algorithm + '=' + hmac.digest('hex');
+}

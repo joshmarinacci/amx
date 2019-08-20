@@ -139,10 +139,9 @@ Run `amx make taskname` to create the task. Then edit it like this:
 
 ```
 {
-   "watch-repo": {
-        "webhook-id":"somekey",
+   "watch": {
+        "secret":"the secret you are looking for",
         "repo":"https://github.com/joshmarinacci/cool.git"
-        "event":"push",
    }
 }
 ```
