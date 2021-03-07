@@ -2,6 +2,14 @@ import path from 'path'
 import {fileURLToPath} from 'url'
 import {default as ch} from 'child_process'
 import fs from 'fs'
+import paths from 'path'
+
+export const CONFIG_TEMPLATE = {
+    name:"unnamed task",
+    directory:"no_dir_specified",
+    type:'node',
+    script:'myscript.js'
+};
 
 let PROCS
 let root
@@ -55,7 +63,7 @@ export function startServer() {
 
 
 export function log() {  console.log("LOG",...arguments) }
-export function info() { console.log('AMX:',...arguments) }
+export function info() { console.log(...arguments) }
 
 export async function file_exists(conf_path) {
     try {
@@ -71,8 +79,6 @@ export async function read_file(conf_path) {
     return JSON.parse(info)
 }
 
-
-
 export async function sleep(delay) {
     return new Promise((res,rej)=>{
         setTimeout(()=>{
@@ -80,7 +86,6 @@ export async function sleep(delay) {
         },delay)
     })
 }
-
 
 export function pad(str,n) {
     if(!str) return spaces(n);
@@ -96,5 +101,14 @@ export function spaces(n) {
     return str;
 }
 
+export async function read_task_config(taskname) {
+    const taskdir = paths.join(getConfigDir(), taskname)
+    const config_file = paths.join(taskdir, 'config.json')
+    let data = await fs.promises.readFile(config_file)
+    return JSON.parse(data.toString())
+}
 
-
+export async function write_task_config(taskname, json) {
+    const config_path = paths.join(getConfigDir(), taskname, 'config.json')
+    await fs.promises.writeFile(config_path, JSON.stringify(json, null, "   "))
+}

@@ -113,11 +113,7 @@ describe("test local server",() => {
         console.log("it's really deleted.")
 
         //stop the server
-        await chai.request(server)
-            .post('/stopserver')
-            .then(res=>{
-                console.log("done stopping")
-            })
+        await chai.request(server).post('/stopserver')
 
         console.log("should really be stopped now")
     })

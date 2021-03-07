@@ -55,8 +55,7 @@ async function runCommand(args) {
         if (commands[command]) return await commands[command](args);
         return printUsage();
     } catch (e) {
-        console.log("error")
-        console.error(e)
+        console.log("ERROR",e.message)
     }
 }
 

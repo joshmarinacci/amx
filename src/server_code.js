@@ -3,7 +3,7 @@ import http from 'http'
 import child_process from "child_process"
 import fs from 'fs'
 import paths from 'path'
-import {file_exists, getConfigDir, log} from "./amx_common.js"
+import {file_exists, getConfigDir, read_task_config, log} from "./amx_common.js"
 
 
 function ERROR(res,str) {
@@ -33,8 +33,6 @@ function listProcesses() {
     })
 }
 
-
-
 const handle_status = async(req,res) => {
     res.statusCode = 200;
     res.setHeader('Content-Type','application/json');
@@ -42,12 +40,6 @@ const handle_status = async(req,res) => {
     res.end();
 }
 
-async function getTaskConfig(task) {
-    const taskdir = paths.join(getConfigDir(), task)
-    const config_file = paths.join(taskdir, 'config.json')
-    let data = await fs.promises.readFile(config_file)
-    return JSON.parse(data.toString())
-}
 
 function l() {
     console.log(...arguments)
@@ -59,7 +51,7 @@ const handle_list = async (req, res) => {
     const list = await fs.promises.readdir(getConfigDir())
     l("list of dirs",list)
     res.setHeader('Content-Type', 'application/json');
-    let configs = await Promise.all(list.map(async (name) => await getTaskConfig(name)))
+    let configs = await Promise.all(list.map(async (name) => await read_task_config(name)))
     let tasks = await Promise.all(configs.map(async config => {
         let running = false
         const pid = await getTaskPid(config.name)
@@ -108,7 +100,7 @@ function copyInto(src,dst) {
 
 async function reallyStartTask(task, cb) {
     log("realling starting the task", task)
-    const config = await getTaskConfig(task)
+    const config = await read_task_config(task)
     // log("task info is", config)
     const taskdir = paths.join(getConfigDir(), task)
     // log("taskdir is",taskdir)
@@ -156,7 +148,7 @@ async function startTask(task) {
     const pid = await getTaskPid(task)
     log("trying to start", task, 'pid is',pid);
     getTaskRestartInfo(task).enabled = true;
-    const info = await getTaskConfig(task)
+    const info = await read_task_config(task)
     // log("task info is",info)
     if(info.archived === true) {
         log("the task is archived")
@@ -246,7 +238,7 @@ const handlers = {
         log("headers = ", req.headers);
         const taskname = parts.pathname.substring('/webhook/'.length)
         log("taskname = ", taskname);
-        const config = getTaskConfig(taskname)
+        const config = read_task_config(taskname)
         if(!config.watch) return ERROR(res, "task not configured for watching");
         parsePost(req,function(err, payload) {
             if(!validateSecret(payload,config,req.headers)) return ERROR(res,"webhook validation failed")
