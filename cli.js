@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import {getConfig, getConfigDir, getRootDir, initSetup, PORT, startServer} from './common.js'
-import {default as paths} from 'path'
+import path from 'path'
 import {default as http} from 'http'
 import {default as ch} from 'child_process'
 import {default as fs} from 'fs'
@@ -100,16 +100,16 @@ function printTasks(tasks) {
     tasks.forEach(task => console.log("task " ,pad(task.name,20), task.running?'running':'stopped', task.pid, task.archived?'archived':'active'));
 }
 
-function listProcesses() {
-    checkRunning()
-        .then(()=> doGet('/list'))
-        .then(data => printTasks(data.tasks))
+async function listProcesses() {
+    await checkRunning()
+    let data = await doGet('/list')
+    printTasks(data.tasks)
 }
 
-function stopServer() {
-    checkRunning()
-        .then(() => doPost('/stopserver'))
-        .then(data => console.log("response = ", data))
+async function stopServer() {
+    await checkRunning()
+    let data = await doPost('/stopserver')
+    console.log("response = ", data)
 }
 
 function checkRunning() {
@@ -223,8 +223,10 @@ function infoTask(args) {
     fs.createReadStream(config).pipe(process.stdout);
 }
 
-function printVersion() {
-    info(JSON.parse(fs.readFileSync(paths.join(__dirname, "package.json")).toString()).version)
+async function printVersion() {
+    let dir = path.dirname(fileURLToPath(import.meta.url))
+    let data = await fs.promises.readFile(path.join(dir,'package.json'))
+    info(JSON.parse(data.toString()).version)
 }
 
 function selfStatus() {
@@ -280,9 +282,9 @@ const commands = {
     'follow':followTask,
 };
 
-function runCommand(args) {
+async function runCommand(args) {
     const command = args.shift()
-    if(commands[command]) return commands[command](args);
+    if (commands[command]) return await commands[command](args);
     console.log("no such command: " + command);
     return printUsage();
 }
@@ -294,6 +296,6 @@ if(args.length < 3) {
 } else {
     args.shift();
     args.shift();
-    runCommand(args);
+    await runCommand(args);
 }
 
