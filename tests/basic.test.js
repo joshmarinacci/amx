@@ -5,6 +5,7 @@ import chaiHttp from 'chai-http'
 import paths from 'path'
 import {initSetup} from '../common.js'
 import {makeTask} from '../src/cli_common.js'
+import {file_exists, read_file} from '../src/amx_common.js'
 chai.use(chaiHttp)
 
 describe('silly.io test',() => {
@@ -18,20 +19,6 @@ describe('silly.io test',() => {
         })
     })
 })
-
-async function file_exists(conf_path) {
-    try {
-        let info = await fs.promises.stat(conf_path)
-        return true
-    } catch (e) {
-        return false
-    }
-}
-
-async function read_file(conf_path) {
-    let info = await fs.promises.readFile(conf_path)
-    return JSON.parse(info)
-}
 
 describe("test local server",() => {
     initSetup()
@@ -62,7 +49,7 @@ describe("test local server",() => {
         //make a new task
         const taskname = 'test1'
         const taskfile = "tests/testserver1/start.js"
-        let conf_path = makeTask([taskname,taskfile])
+        let conf_path = await makeTask([taskname,taskfile])
 
         //verify config json on disk
         let exists = await file_exists(conf_path)
@@ -73,24 +60,25 @@ describe("test local server",() => {
         expect(config_json.script).to.equal(taskfile)
 
 
+        // make the server
         let server = make_server()
-            // doPost("/start?task="+taskname).then(res => console.log(res))
-        //start it
+
+        //start the task
         await chai.request(server)
             .get('/start?task='+taskname)
             .then(res=>{
+                console.log("START: body is",res.body)
                 expect(res.status).to.equal(200)
                 expect(res).to.have.header('content-type','application/json')
-                console.log("server started it")
             })
 
         //confirm it's running via server listing
         await chai.request(server)
             .get('/list')
             .then(res=>{
+                console.log("LIST: body is",res.body)
                 expect(res.status).to.equal(200)
                 expect(res).to.have.header('content-type','application/json')
-                console.log("the list is",res.body)
                 expect(res.body.tasks[0].name).to.equal(taskname)
             })
 
@@ -98,9 +86,9 @@ describe("test local server",() => {
         await chai.request(server)
             .get('/stop?task='+taskname)
             .then(res => {
+                console.log("STOP: body is",res.body)
                 expect(res.status).to.equal(200)
                 expect(res).to.have.header('content-type','application/json')
-                console.log("server stopped it",res.body)
             })
 
         //confirm it's not running anymore
@@ -109,10 +97,10 @@ describe("test local server",() => {
             .then(res=>{
                 expect(res.status).to.equal(200)
                 expect(res).to.have.header('content-type','application/json')
-                console.log("the list is",res.body)
                 expect(res.body.count).to.equal(1)
                 expect(res.body.tasks[0].running).to.equal(false)
             })
+
         //delete it
         console.log("task config is",conf_path)
         let basedir = paths.dirname(conf_path)

@@ -4,6 +4,7 @@ import child_process from "child_process"
 import fs from 'fs'
 import paths from 'path'
 import {getConfigDir} from "../common.js"
+import {file_exists, log} from './amx_common.js'
 
 
 function ERROR(res,str) {
@@ -24,7 +25,6 @@ function SUCCESS(res,str) {
 
 function listProcesses() {
     return new Promise((res,rej) => {
-        l("doing child proc")
         child_process.exec('ps ax -o pid=',(err,stdout) => {
             let lines = stdout.split('\n');
             lines = lines.map((line) =>parseInt(line))
@@ -43,10 +43,11 @@ const handle_status = (req,res) => {
     res.end();
 }
 
-function getTaskConfig(task) {
+async function getTaskConfig(task) {
     const taskdir = paths.join(getConfigDir(), task)
     const config_file = paths.join(taskdir, 'config.json')
-    return JSON.parse(fs.readFileSync(config_file).toString())
+    let data = await fs.promises.readFile(config_file)
+    return JSON.parse(data.toString())
 }
 
 function l() {
@@ -56,44 +57,42 @@ const handle_list = async (req, res) => {
     l("listing")
     let pids = await listProcesses()
     res.statusCode = 200;
-    const list = fs.readdirSync(getConfigDir())
-    console.log("list is",list)
+    const list = await fs.promises.readdir(getConfigDir())
     res.setHeader('Content-Type', 'application/json');
-    let configproms = list.map((name) => getTaskConfig(name))
-    await Promise.all(configproms).then(configs => {
-        let tasks = configs.map(config => {
-            let running = false
-            const pid = getTaskPid(config.name)
-            if (pids.indexOf(pid) >= 0) running = true;
-            return {
-                name: config.name,
-                path: paths.join(getConfigDir(), config.name),
-                running: running,
-                pid: pid,
-                archived: config.archived,
-            }
-        })
-        res.write(JSON.stringify({'count': tasks.length, tasks: tasks}));
-        res.end();
-    })
+    let configs = await Promise.all(list.map(async (name) => await getTaskConfig(name)))
+    let tasks = await Promise.all(configs.map(async config => {
+        let running = false
+        const pid = await getTaskPid(config.name)
+        if (pids.indexOf(pid) >= 0) running = true;
+        return {
+            name: config.name,
+            path: paths.join(getConfigDir(), config.name),
+            running: running,
+            pid: pid,
+            archived: config.archived,
+        }
+    }))
+    l("task",tasks)
+    res.write(JSON.stringify({'count': tasks.length, tasks: tasks}));
+    res.end();
 }
 
 function parseTaskName(req) {
     return URL.parse(req.url).query.split('=')[1]
 }
 
-function taskExists(task) {
-    if(!task) return false
-    return fs.existsSync(paths.join(getConfigDir(), task))
+async function taskExists(task) {
+    if (!task) return false
+    return await file_exists(paths.join(getConfigDir(), task))
 }
 
-function getTaskPid(task) {
+async function getTaskPid(task) {
     const pidfile = paths.join(getConfigDir(),task,'pid');
-    if(!fs.existsSync(pidfile)) return -1;
-    return parseInt(fs.readFileSync(pidfile).toString());
+    if(!(await file_exists(pidfile))) return -1
+    let raw = await fs.promises.readFile(pidfile)
+    return parseInt(raw.toString());
 }
 
-function log() {  console.log("LOG",...arguments) }
 
 const task_map = {};
 function getTaskRestartInfo(taskname) {
@@ -107,106 +106,107 @@ function copyInto(src,dst) {
     }
 }
 
-function reallyStartTask(task, cb) {
-    log("realling starting the task",task)
+async function reallyStartTask(task, cb) {
+    log("realling starting the task", task)
+    const config = await getTaskConfig(task)
+    // log("task info is", config)
     const taskdir = paths.join(getConfigDir(), task)
-    const config = JSON.parse(fs.readFileSync(paths.join(taskdir, 'config.json')).toString())
-    log("config is",config)
-    if(!fs.existsSync(config.directory)) throw new Error("directory does not exist " + config.directory)
+    // log("taskdir is",taskdir)
+    // const config = JSON.parse(fs.readFileSync(paths.join(taskdir, 'config.json')).toString())
+    // log("config is", config)
+    if (!(await file_exists(config.directory))) throw new Error("directory does not exist " + config.directory)
     let cargs = []
     let command = null
-    if(config.type === 'npm')  {
-        cargs = ['run',config.script];
+    if (config.type === 'npm') {
+        cargs = ['run', config.script];
         command = 'npm';
     }
-    if(config.type === 'node') {
+    if (config.type === 'node') {
         cargs = [config.script];
         command = 'node';
     }
-    if(config.type === 'exe') {
+    if (config.type === 'exe') {
         cargs = []
-        if(config.args) cargs = config.args
+        if (config.args) cargs = config.args
         command = config.script
     }
-    if(command === null) throw new Error("unknown script type " + config.type)
+    if (command === null) throw new Error("unknown script type " + config.type)
     const opts = {
-        cwd:config.directory,
-        detached:true,
-        stdio:[
+        cwd: config.directory,
+        detached: true,
+        stdio: [
             'ignore',
             fs.openSync(paths.join(taskdir, 'stdout.log'), 'a'),  // Standard Out
             fs.openSync(paths.join(taskdir, 'stderr.log'), 'a'),  // Standard Error
         ],
         env: {}
     };
-    copyInto(process.env,opts.env);
-    if(config.env) copyInto(config.env,opts.env);
-    log("spawning",command,cargs/*,opts*/);
+    copyInto(process.env, opts.env);
+    if (config.env) copyInto(config.env, opts.env);
+    // log("spawning", command, cargs/*,opts*/);
     const child = child_process.spawn(command, cargs, opts)
-    child.on('error',err => log("error spawning ",command))
-    fs.writeFileSync(paths.join(taskdir,'pid'),''+child.pid);
+    child.on('error', err => log("error spawning ", command))
+    await fs.promises.writeFile(paths.join(taskdir,'pid'), '' + child.pid);
     child.unref();
     log("done. returning pid")
     return child.pid
 }
 
-function startTask(task) {
-    const pid = getTaskPid(task)
-    log("trying to start", task);
+async function startTask(task) {
+    const pid = await getTaskPid(task)
+    log("trying to start", task, 'pid is',pid);
     getTaskRestartInfo(task).enabled = true;
-    const info = getTaskConfig(task)
+    const info = await getTaskConfig(task)
+    // log("task info is",info)
     if(info.archived === true) {
         log("the task is archived")
         getTaskRestartInfo(task).enabled = false;
-        return Promise.resolve(-1)
+        return -1
     }
     if('restart' in info && info.restart === false) {
         log("only run the task once")
         getTaskRestartInfo(task).enabled = false;
     }
-    return listProcesses().then(pids => {
-        if(pids.indexOf(pid)>=0)  throw new Error(`task is already running: ${task} ${pid}`);
-        return reallyStartTask(task)
-    });
+    let pids = await listProcesses()
+    if(pids.indexOf(pid)>=0)  throw new Error(`task is already running: ${task} ${pid}`);
+    return reallyStartTask(task)
 }
 
 const handle_start = async (req,res) => {
     const task = parseTaskName(req);
     try {
-        if (!taskExists(task)) return ERROR(res, "no such task " + task);
-        return startTask(task)
-            .then(cpid => SUCCESS(res, "started task " + task + ' ' + cpid))
-            .catch(err => {
-                ERROR(res, "error" + err)
-            });
+        if (!(await taskExists(task))) return ERROR(res, "no such task " + task);
+        let cpid = await startTask(task)
+        SUCCESS(res, "started task " + task + ' ' + cpid)
     } catch (e) {
         console.error("ERROR!",e)
-        // e.trace()
+        ERROR(res, "error" + e)
     }
 }
 
-function stopTask(task, cb) {
+async function stopTask(task, cb) {
     getTaskRestartInfo(task).enabled = false;
-    const pid = getTaskPid(task);
-    return listProcesses().then(pids => {
-        log("looking for pid",pid)
-        if(pids.indexOf(pid)>=0) {
-            log("killing the pid",pid)
-            process.kill(pid,'SIGINT');
-            return null
-        } else {
-            log("couldn't find the pid")
-            return "process not running"
-        }
-    });
+    const pid = await getTaskPid(task);
+    let pids = await listProcesses()
+    if (pids.indexOf(pid) >= 0) {
+        log("killing the pid", pid)
+        process.kill(pid, 'SIGINT');
+        return null
+    } else {
+        log("couldn't find the pid")
+        return "process not running"
+    }
 }
 
 const handle_stop = async (req,res) => {
-    const task = parseTaskName(req);
-    if(!taskExists(task)) return ERROR(res,"no such task " + task);
-    return stopTask(task)
-        .then(()=> SUCCESS(res,"successfully killed " + task))
-        .catch(err => ERROR(res,"error from killing " + err));
+    try {
+        const task = parseTaskName(req);
+        if (!(await taskExists(task))) return ERROR(res, "no such task " + task);
+        await stopTask(task)
+        SUCCESS(res, "successfully killed " + task)
+    } catch(err) {
+        ERROR(res,"error from killing " + err)
+    }
 }
 
 const handlers = {
@@ -259,25 +259,21 @@ const handlers = {
 };
 
 export function make_server() {
-    let server = http.createServer(function(req,res) {
+    return http.createServer(function(req,res) {
         console.log("inside the request",req.url)
         const parts = URL.parse(req.url)
-        // log(parts.path);
         if(handlers[parts.pathname]) {
             return handlers[parts.pathname](req, res)
-                .then(()=>{console.log("done")})
                 .catch(e => {
                     l("ERROR")
                     console.error(e)
                 })
         }
         if(parts.pathname.indexOf('/webhook')>=0) return handlers['/webhook'](req,res);
-        // log("no handler");
+        log("no handler");
         res.statusCode = 200;
         res.setHeader('Content-Type','text/json');
         res.write(JSON.stringify({'status':'alive'}));
         res.end();
     })
-    // console.log("server is",server)
-    return server
 }
