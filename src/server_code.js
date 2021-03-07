@@ -214,19 +214,27 @@ const handle_stopserver = async (req,res) => {
     SUCCESS(res,"stopping the server");
     await setTimeout(() => process.exit(-1),100);
 }
+const handle_restart = async (req,res) => {
+    try {
+        const task = parseTaskName(req)
+        if (!(await taskExists(task))) return ERROR(res, "no such task " + task);
+        await stopTask(task)
+        let cpid = await startTask(task)
+        SUCCESS(res, "started task " + task + ' ' + cpid)
+    } catch (e) {
+        ERROR(res, "error" + e)
+    }
+        // .then(()=> startTask(task))
+        // .then(cpid => SUCCESS(res,"started task " + task + cpid))
+        // .catch(err => ERROR(res,"error"+err));
+}
+
 const handlers = {
     '/status': handle_status,
     '/list': handle_list,
     '/stop': handle_stop,
     '/start': handle_start,
-    '/restart':function(req,res) {
-        const task = parseTaskName(req);
-        if(!taskExists(task)) return ERROR(res,"no such task " + task);
-        stopTask(task)
-            .then(()=> startTask(task))
-            .then(cpid => SUCCESS(res,"started task " + task + cpid))
-            .catch(err => ERROR(res,"error"+err));
-    },
+    '/restart':handle_restart,
     '/stopserver':handle_stopserver,
     '/rescan':function(req,res) {
         const task = parseTaskName(req);

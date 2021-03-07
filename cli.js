@@ -6,170 +6,19 @@ import {default as ch} from 'child_process'
 import {default as fs} from 'fs'
 import {default as tail} from 'tail'
 import {fileURLToPath} from 'url'
-import {makeTask, printUsage} from './src/cli_common.js'
+import {
+    checkRunning, followTask, infoTask,
+    listProcesses, logTask,
+    makeTask, nuke_task,
+    printUsage, restartTask,
+    startTask,
+    stopServer, stopTask
+} from './src/cli_common.js'
 const Tail = tail.Tail
 
 initSetup();
 
 
-function spaces(n) {
-    let str = "";
-    for(let i=0; i<n; i++) {
-        str +=' ';
-    }
-    return str;
-}
-function pad(str,n) {
-    if(!str) return spaces(n);
-    if(str.length < n) return str + spaces(n-str.length);
-    return str;
-}
-function info() {
-    const args = Array.prototype.slice.call(arguments, 0)
-    console.log('AMX:',args.join(" "))
-}
-function error() {
-    const args = Array.prototype.slice.call(arguments, 0)
-    console.log('AMX ERROR:',args.join(" "))
-}
-function checkTaskMissing(taskname) {
-    if(!taskname) {
-        error('missing taskname')
-        return true
-    }
-    const path = paths.join(getConfigDir(),taskname)
-    if(!fs.existsSync(path)) {
-        error(`task '${taskname}' does not exist at ${path}`)
-        return true
-    }
-    return false
-}
-function checkMissingFile(path) {
-    if(!fs.existsSync(path)) {
-        error(`file '${path}' does not exist`)
-        return true
-    }
-    return false
-}
-function doGet(path) {
-    return new Promise((resolve,rej) => {
-        const req = http.request({
-                host: 'localhost',
-                port: PORT,
-                method: 'GET',
-                path: path
-            },
-            (res) => {
-                let chunks = ""
-                res.on('data', (data) => chunks += data.toString())
-                res.on('end', () => resolve(JSON.parse(chunks)))
-            }
-        );
-        req.on('error', (e)=> rej(e))
-        req.end()
-    })
-}
-function doPost(path) {
-    return checkRunning().then(()=>{
-        console.log("inside then")
-        return new Promise((resolve,rej) => {
-            console.log("should be running now")
-            const req = http.request({
-                    host: 'localhost',
-                    port: PORT,
-                    method: 'POST',
-                    path: path
-                },
-                (res) => {
-                    let chunks = ""
-                    res.on('data', (data) => chunks += data.toString())
-                    res.on('end', () => resolve(JSON.parse(chunks)))
-                }
-            );
-            req.on('error', (e)=> rej(e))
-            req.end()
-        })
-    }).catch(e => {
-        console.log("error happened",e)
-    })
-}
-
-
-function printTasks(tasks) {
-    if(tasks.length <= 0) return console.log("no running tasks");
-    tasks.forEach(task => console.log("task " ,pad(task.name,20), task.running?'running':'stopped', task.pid, task.archived?'archived':'active'));
-}
-
-async function listProcesses() {
-    await checkRunning()
-    let data = await doGet('/list')
-    printTasks(data.tasks)
-}
-
-async function stopServer() {
-    await checkRunning()
-    let data = await doPost('/stopserver')
-    console.log("response = ", data)
-}
-
-function checkRunning() {
-    return new Promise((res,rej) => {
-        const req = http.request({
-                host:'localhost',
-                port:PORT,
-                method:'GET',
-                path:'/status'},
-            (response => res(response)))
-        req.on('error',e=> {
-            if(e.code === 'ECONNREFUSED') {
-                info("can't connect to server. starting")
-                setTimeout(() =>{
-                    console.log("finishing promise")
-                    res()
-                },1000)
-                try {
-                    startServer();
-                } catch (e) {
-                    console.log("error starting the server",e)
-                }
-            }
-        });
-        req.end();
-    })
-}
-
-
-
-function startTask(args) {
-    const taskname = args[0]
-    info(`starting the task '${taskname}'`)
-    doPost("/start?task="+taskname).then(res => console.log(res))
-}
-
-function stopTask(args) {
-    const taskname = args[0]
-    info(`stopping the task '${taskname}'`);
-    doPost("/stop?task="+taskname).then(res => console.log(res))
-}
-
-function restartTask(args) {
-    const taskname = args[0]
-    info(`restarting the task ${taskname}`);
-    doPost("/restart?task="+taskname).then(res => console.log(res))
-}
-
-function recursiveDeleteDir(str) {
-    if(fs.existsSync(str)) {
-        if(fs.statSync(str).isDirectory()) {
-            fs.readdirSync(str).forEach(function (file) {
-                recursiveDeleteDir(paths.join(str, file));
-            });
-            fs.rmdirSync(str);
-        } else {
-            fs.unlinkSync(str);
-        }
-    }
-}
 
 function archiveTask(args) {
     const taskname = args[0]
@@ -193,35 +42,8 @@ function unarchiveTask(args) {
     console.log("wrote",JSON.parse(fs.readFileSync(config)))
 }
 
-function logTask(args) {
-    const taskname = args[0]
-    if(checkTaskMissing(taskname)) return
-    const logPath = paths.join(getConfigDir(),taskname,'stdout.log')
-    if(checkMissingFile(logPath)) return
-    fs.createReadStream(logPath).pipe(process.stdout);
-}
 
-function followTask(args) {
-    const taskname = args[0]
-    if(checkTaskMissing(taskname)) return
-    const outPath = paths.join(getConfigDir(),taskname,'stdout.log')
-    if(checkMissingFile(outPath)) return
-    const errPath = paths.join(getConfigDir(),taskname,'stderr.log')
-    if(checkMissingFile(errPath)) return
-    const stdoutTail = new Tail(outPath)
-    stdoutTail.on('line', (data) => console.log(data))
-    stdoutTail.on('error', (data) => console.log('ERROR:',data))
-    const stderrTail = new Tail(errPath)
-    stderrTail.on('line', (data) => console.log(data))
-    stderrTail.on('error', (data) => console.log('ERROR:',data))
-}
 
-function infoTask(args) {
-    const taskname = args[0]
-    if(checkTaskMissing(taskname)) return
-    const config = paths.join(getConfigDir(), taskname, 'config.json')
-    fs.createReadStream(config).pipe(process.stdout);
-}
 
 async function printVersion() {
     let dir = path.dirname(fileURLToPath(import.meta.url))
@@ -270,16 +92,18 @@ const commands = {
     'stopserver':stopServer,
     'make':makeTask,
     'start':startTask,
+    'nuke':nuke_task,
     'stop':stopTask,
+    'log':logTask,
+    'follow':followTask,
+    'info':infoTask,
     'restart':restartTask,
+
     'archive':archiveTask,
     'unarchive':unarchiveTask,
-    'log':logTask,
-    'info':infoTask,
     'version':printVersion,
     'edit':editTask,
     'selfstatus':selfStatus,
-    'follow':followTask,
 };
 
 async function runCommand(args) {

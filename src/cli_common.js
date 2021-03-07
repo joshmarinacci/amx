@@ -1,7 +1,9 @@
 import {default as paths} from 'path'
-import {getConfigDir} from '../common.js'
-import {promises as fs} from 'fs'
-import {file_exists, info} from './amx_common.js'
+import {getConfigDir, PORT, startServer} from '../common.js'
+import {promises as fs, createReadStream} from 'fs'
+import {file_exists, info, pad} from './amx_common.js'
+import {default as http} from 'http'
+import {Tail} from 'tail'
 
 const CONFIG_TEMPLATE = {
     name:"unnamed task",
@@ -9,6 +11,13 @@ const CONFIG_TEMPLATE = {
     type:'node',
     script:'myscript.js'
 };
+
+async function checkTaskMissing(taskname) {
+    if (!taskname) return true
+    const path = paths.join(getConfigDir(), taskname)
+    if (!(await file_exists(path))) return true
+    return false
+}
 
 export async function makeTask(args) {
     const taskname = args.shift()
@@ -25,13 +34,167 @@ export async function makeTask(args) {
         config.script = args[0];
         config.directory = process.cwd();
     }
-    // info(JSON.stringify(config,null,'    '));
     await fs.writeFile(confpath,JSON.stringify(config,null,'    '));
-
     info("edit the config file",confpath);
     info("then run: amx start ",taskname);
     return confpath
 }
+
+export async function startTask(args) {
+    const taskname = args[0]
+    info(`starting the task '${taskname}'`)
+    let res = await doPost("/start?task="+taskname)
+    console.log(res)
+}
+export async function stopTask(args) {
+    const taskname = args[0]
+    info(`stopping the task '${taskname}'`);
+    let res = await doPost("/stop?task="+taskname)
+    console.log(res)
+}
+export async function restartTask(args) {
+    const taskname = args[0]
+    info(`restarting the task ${taskname}`);
+    let res = await doPost("/restart?task="+taskname)
+    console.log(res)
+}
+
+export async function logTask(args) {
+    const taskname = args[0]
+    if(await checkTaskMissing(taskname)) return
+    const logPath = paths.join(getConfigDir(),taskname,'stdout.log')
+    console.log("looking at",logPath)
+    if(await file_exists(logPath)) {
+        createReadStream(logPath).pipe(process.stdout);
+    }
+
+    const errPath = paths.join(getConfigDir(),taskname,'stderr.log')
+    if(await file_exists(errPath)) {
+        createReadStream(errPath).pipe(process.stdout);
+    }
+}
+export async function followTask(args) {
+    const taskname = args[0]
+    if(await checkTaskMissing(taskname)) return
+    const outPath = paths.join(getConfigDir(),taskname,'stdout.log')
+    if(! (await file_exists(outPath))) return
+    const errPath = paths.join(getConfigDir(),taskname,'stderr.log')
+    if(!(await file_exists(errPath))) return
+    const stdoutTail = new Tail(outPath)
+    stdoutTail.on('line', (data) => console.log(data))
+    stdoutTail.on('error', (data) => console.log('ERROR:',data))
+    const stderrTail = new Tail(errPath)
+    stderrTail.on('line', (data) => console.log(data))
+    stderrTail.on('error', (data) => console.log('ERROR:',data))
+}
+
+export async function infoTask(args) {
+    const taskname = args[0]
+    if(await checkTaskMissing(taskname)) return
+    const config = paths.join(getConfigDir(), taskname, 'config.json')
+    console.log("config is",config)
+    createReadStream(config).pipe(process.stdout);
+}
+
+export async function nuke_task(args) {
+    const taskname = args[0]
+    const taskname2 = args[1]
+    if(!taskname || taskname != taskname2) return console.log("you must type the name twice to nuke a task")
+    await stopTask([taskname])
+    info("fully stopped")
+    let taskdir = paths.join(getConfigDir(),taskname)
+    // const pidfile = paths.join(getConfigDir(),task,'pid');
+    // if(!(await file_exists(pidfile))) return -1
+    // let raw = await fs.promises.readFile(pidfile)
+    info("nuking ", taskdir)
+    await fs.rmdir(taskdir, {recursive:true})
+}
+
+export async function stopServer() {
+    await checkRunning()
+    let data = await doPost('/stopserver')
+    console.log("response = ", data)
+}
+
+export function checkRunning() {
+    return new Promise((res,rej) => {
+        const req = http.request({
+                host:'localhost',
+                port:PORT,
+                method:'GET',
+                path:'/status'},
+            (response => res(response)))
+        req.on('error',e=> {
+            if(e.code === 'ECONNREFUSED') {
+                info("can't connect to server. starting")
+                setTimeout(() =>{
+                    console.log("finishing promise")
+                    res()
+                },1000)
+                try {
+                    startServer();
+                } catch (e) {
+                    console.log("error starting the server",e)
+                }
+            }
+        });
+        req.end();
+    })
+}
+
+export async function listProcesses() {
+    await checkRunning()
+    let data = await doGet('/list')
+    printTasks(data.tasks)
+}
+
+function printTasks(tasks) {
+    if(tasks.length <= 0) return console.log("no running tasks");
+    tasks.forEach(task => console.log("task " ,pad(task.name,20), task.running?'running':'stopped', task.pid, task.archived?'archived':'active'));
+}
+
+
+function doGet(path) {
+    return new Promise((resolve,rej) => {
+        const req = http.request({
+                host: 'localhost',
+                port: PORT,
+                method: 'GET',
+                path: path
+            },
+            (res) => {
+                let chunks = ""
+                res.on('data', (data) => chunks += data.toString())
+                res.on('end', () => resolve(JSON.parse(chunks)))
+            }
+        );
+        req.on('error', (e)=> rej(e))
+        req.end()
+    })
+}
+function doPost(path) {
+    return checkRunning().then(()=>{
+        return new Promise((resolve,rej) => {
+            const req = http.request({
+                    host: 'localhost',
+                    port: PORT,
+                    method: 'POST',
+                    path: path
+                },
+                (res) => {
+                    let chunks = ""
+                    res.on('data', (data) => chunks += data.toString())
+                    res.on('end', () => resolve(JSON.parse(chunks)))
+                }
+            );
+            req.on('error', (e)=> rej(e))
+            req.end()
+        })
+    }).catch(e => {
+        console.log("error happened",e)
+    })
+}
+
 
 
 export function printUsage() {

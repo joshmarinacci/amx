@@ -26,3 +26,20 @@ export async function sleep(delay) {
         },delay)
     })
 }
+
+
+export function pad(str,n) {
+    if(!str) return spaces(n);
+    if(str.length < n) return str + spaces(n-str.length);
+    return str;
+}
+
+export function spaces(n) {
+    let str = "";
+    for(let i=0; i<n; i++) {
+        str +=' ';
+    }
+    return str;
+}
+
+

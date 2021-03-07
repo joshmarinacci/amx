@@ -1,5 +1,5 @@
-var http  = require('http');
-var port = 45782;
+import http from 'http'
+const port = 45782
 http.createServer(function(req,res) {
     console.log("got a request");
     res.statusCode = 200;
@@ -7,5 +7,5 @@ http.createServer(function(req,res) {
     res.write(JSON.stringify({'status':'alive'}));
     res.end();
 }).listen(port, function() {
-    console.log("we are up and running on port",port);
+    console.log("we are up and running on port",port, new Date().toISOString());
 })
