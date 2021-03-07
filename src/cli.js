@@ -16,8 +16,8 @@ import {
     stopServer,
     stopTask,
     unarchiveTask
-} from './src/cli_common.js'
-import {initSetup} from './src/amx_common.js'
+} from './cli_common.js'
+import {initSetup} from './amx_common.js'
 
 initSetup();
 
