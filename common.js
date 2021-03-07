@@ -1,18 +1,20 @@
-var paths = require('path');
-var fs    = require('fs');
+import {default as paths} from 'path'
+import {default as fs} from 'fs'
+import {fileURLToPath} from 'url'
+import {default as ch} from 'child_process'
 
-var PROCS;
-var root;
-var config;
-exports.initSetup = function() {
+let PROCS
+let root
+let config
+export const initSetup = function() {
     if(!process.env.HOME) throw new Error("can't calculate HOME");
-    var HOME = process.env.HOME;
+    const HOME = process.env.HOME
     root = paths.join(HOME,'.amx');
     if(!fs.existsSync(root)) fs.mkdirSync(root);
     PROCS = paths.join(root,'procs');
     if(!fs.existsSync(PROCS)) fs.mkdirSync(PROCS);
 
-    var file = paths.join(root,'config.json');
+    const file = paths.join(root, 'config.json')
     if(!fs.existsSync(file)) {
         config = { }
     } else {
@@ -24,16 +26,30 @@ exports.initSetup = function() {
         }
     }
 };
-exports.getConfigDir = function() {
+export const getConfigDir = function() {
     return PROCS;
 };
-exports.getRootDir = function() {
+export const getRootDir = function() {
     return root;
 };
 
-exports.getConfig = function() {
+export const getConfig = function() {
     return config;
 };
 
 
-exports.PORT = 48999;
+export const PORT = 48999;
+
+
+export function startServer() {
+    let dirname = fileURLToPath(import.meta.url)
+    console.log('starting the server ', dirname)
+    let outlog_path = paths.relative(dirname,'out.log')
+    console.log('log path',outlog_path)
+    const out = fs.openSync(outlog_path, 'a')
+    const err = fs.openSync(outlog_path, 'a')
+    let server_path = paths.relative(dirname,'server.js')
+    console.log("server path",server_path)
+    const child = ch.spawn("node",[server_path],{detached:true, stdio:['ignore',out,err]})
+    child.unref();
+}

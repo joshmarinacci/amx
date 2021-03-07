@@ -1,17 +1,14 @@
 #!/usr/bin/env node
-var common = require('./common');
-var paths = require('path');
-var http   = require('http');
-var ch = require('child_process');
-var fs = require('fs');
-var Tail = require('tail').Tail;
+import {getConfigDir, initSetup} from './common.js'
+import {default as paths} from 'path'
+import {default as http} from 'http'
+import {default as ch} from 'child_process'
+import {default as fs} from 'fs'
+import {default as tail} from 'tail'
+import {fileURLToPath} from 'url'
+const Tail = tail.Tail
 
-common.initSetup();
-
-var args = process.argv.slice();
-if(args.length < 3) return printUsage();
-args.shift();
-args.shift();
+initSetup();
 
 
 function spaces(n) {
@@ -129,13 +126,6 @@ function checkRunning() {
     })
 }
 
-function startServer() {
-    console.log('starting the server ', __dirname)
-    const out = fs.openSync(__dirname+'/out.log', 'a')
-    const err = fs.openSync(__dirname+'/out.log', 'a')
-    const child = ch.spawn("node",[__dirname+'/server.js'],{detached:true, stdio:['ignore',out,err]})
-    child.unref();
-}
 
 function printUsage() {
     console.log("amx make  <taskname>");
@@ -166,37 +156,6 @@ function printUsage() {
     console.log("      version of AMX from NPM")
     console.log("amx selfstatus");
     console.log("      print version, config, status information of AMX itself")
-}
-
-
-const CONFIG_TEMPLATE = {
-    name:"unnamed task",
-    directory:"directory of your files",
-    type:'node',
-    script:'myscript.js'
-};
-
-function makeTask(args) {
-    const taskname = args.shift()
-    info("making the task",taskname);
-    if(!taskname) return printUsage();
-    const procpath = paths.join(common.getConfigDir(), taskname)
-    if(!fs.existsSync(procpath)) fs.mkdirSync(procpath);
-    info("made dir",procpath);
-    const confpath = paths.join(procpath, 'config.json')
-    const config = JSON.parse(JSON.stringify(CONFIG_TEMPLATE))
-    config.name = taskname;
-
-    if(args.length > 0) {
-        config.script = args[0];
-        config.directory = process.cwd();
-    }
-    info("generating ");
-    info(JSON.stringify(config,null,'    '));
-    fs.writeFileSync(confpath,JSON.stringify(config,null,'    '));
-
-    info("edit the config file",confpath);
-    info("then run: amx start ",taskname);
 }
 
 function startTask(args) {
@@ -339,11 +298,20 @@ const commands = {
     'follow':followTask,
 };
 
-function runCommand() {
+function runCommand(args) {
     const command = args.shift()
     if(commands[command]) return commands[command](args);
     console.log("no such command: " + command);
     return printUsage();
 }
 
-runCommand();
+
+const args = process.argv.slice();
+if(args.length < 3) {
+    printUsage();
+} else {
+    args.shift();
+    args.shift();
+    runCommand(args);
+}
+

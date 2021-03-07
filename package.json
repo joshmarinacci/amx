@@ -3,6 +3,7 @@
   "version": "0.0.31",
   "description": "AMX: automatic process manager",
   "main": "cli.js",
+  "type": "module",
   "bin": "./cli.js",
   "directories": {
     "test": "tests"
@@ -27,7 +28,12 @@
   },
   "homepage": "https://github.com/joshmarinacci/amx#readme",
   "dependencies": {
+    "chai-http": "^4.3.0",
     "nodemailer": "^2.3.2",
     "tail": "^1.2.3"
+  },
+  "devDependencies": {
+    "chai": "^4.3.3",
+    "mocha": "^8.3.1"
   }
 }

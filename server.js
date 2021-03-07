@@ -156,45 +156,6 @@ function copyInto(src,dst) {
     }
 }
 
-function reallyStartTask(task,cb) {
-    const taskdir = paths.join(common.getConfigDir(), task)
-    const config = JSON.parse(fs.readFileSync(paths.join(taskdir, 'config.json')).toString())
-    if(!fs.existsSync(config.directory)) throw new Error("directory does not exist " + config.directory)
-    let cargs = []
-    let command = null
-    if(config.type === 'npm')  {
-        cargs = ['run',config.script];
-        command = 'npm';
-    }
-    if(config.type === 'node') {
-        cargs = [config.script];
-        command = 'node';
-    }
-    if(config.type === 'exe') {
-        cargs = []
-        if(config.args) cargs = config.args
-        command = config.script
-    }
-    if(command === null) throw new Error("unknown script type " + config.type)
-    const opts = {
-        cwd:config.directory,
-        detached:true,
-        stdio:[
-            'ignore',
-            fs.openSync(paths.join(taskdir, 'stdout.log'), 'a'),  // Standard Out
-            fs.openSync(paths.join(taskdir, 'stderr.log'), 'a'),  // Standard Error
-        ],
-        env: {}
-    };
-    copyInto(process.env,opts.env);
-    if(config.env) copyInto(config.env,opts.env);
-    log("spawning",command,cargs/*,opts*/);
-    const child = child_process.spawn(command, cargs, opts)
-    child.on('error',err => log("error spawning ",command))
-    fs.writeFileSync(paths.join(taskdir,'pid'),''+child.pid);
-    child.unref();
-    return child.pid
-}
 
 function startTask(task, cb) {
     const pid = getTaskPid(task)
@@ -313,6 +274,7 @@ const handlers = {
 };
 
 http.createServer(function(req,res) {
+    console.log("inside the request")
     const parts = URL.parse(req.url)
     log(parts.path);
     if(handlers[parts.pathname]) return handlers[parts.pathname](req,res);
