@@ -3,9 +3,9 @@ import fs from 'fs'
 import chai, {expect} from "chai"
 import chaiHttp from 'chai-http'
 import paths from 'path'
-import {initSetup} from '../common.js'
+import {file_exists, initSetup, read_file} from '../src/amx_common.js'
 import {makeTask} from '../src/cli_common.js'
-import {file_exists, read_file} from '../src/amx_common.js'
+
 chai.use(chaiHttp)
 
 describe('silly.io test',() => {

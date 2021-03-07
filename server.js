@@ -1,4 +1,5 @@
-const common = require('./common')
+import {getRootDir, initSetup} from './src/amx_common.js'
+
 const paths = require('path')
 const fs = require('fs')
 const http = require('http')
@@ -8,9 +9,9 @@ const URL = require('url')
 const crypto = require('crypto');
 const assert = require('assert');
 
-common.initSetup();
+initSetup();
 
-const path = paths.join(common.getRootDir(), 'status.log')
+const path = paths.join(getRootDir(), 'status.log')
 let logger
 try {
     fs.accessSync(path, fs.W_OK);

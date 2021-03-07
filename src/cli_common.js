@@ -1,5 +1,5 @@
 import {default as paths} from 'path'
-import {getConfig, getConfigDir, getRootDir, PORT, startServer} from '../common.js'
+import {getConfig, getConfigDir, getRootDir, PORT, startServer} from './amx_common.js'
 import {promises as fs, createReadStream} from 'fs'
 import {file_exists, info, pad} from './amx_common.js'
 import {default as http} from 'http'

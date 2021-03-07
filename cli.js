@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import {initSetup} from './common.js'
 import {
     archiveTask,
     editTask,
@@ -18,6 +17,7 @@ import {
     stopTask,
     unarchiveTask
 } from './src/cli_common.js'
+import {initSetup} from './src/amx_common.js'
 
 initSetup();
 

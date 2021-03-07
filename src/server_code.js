@@ -3,8 +3,7 @@ import http from 'http'
 import child_process from "child_process"
 import fs from 'fs'
 import paths from 'path'
-import {getConfigDir} from "../common.js"
-import {file_exists, log} from './amx_common.js'
+import {file_exists, getConfigDir, log} from "./amx_common.js"
 
 
 function ERROR(res,str) {
