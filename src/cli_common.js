@@ -18,8 +18,7 @@ const CONFIG_TEMPLATE = {
 async function checkTaskMissing(taskname) {
     if (!taskname) return true
     const path = paths.join(getConfigDir(), taskname)
-    if (!(await file_exists(path))) return true
-    return false
+    return !(await file_exists(path));
 }
 
 export async function makeTask(args) {
@@ -141,6 +140,40 @@ export async function editTask(args) {
 function spawnEditor(editorpath, file) {
     const vim = ch.spawn(editorpath, [file], { stdio: 'inherit' })
     vim.on('exit', code => info(`done editing ${file}`))
+}
+
+
+async function read_config(taskname) {
+    const config_path = paths.join(getConfigDir(), taskname, 'config.json')
+    const json = JSON.parse((await fs.readFile(config_path)).toString())
+    return json
+}
+
+async function write_config(taskname, json) {
+    const config_path = paths.join(getConfigDir(), taskname, 'config.json')
+    await fs.writeFile(config_path, JSON.stringify(json, null, "   "))
+}
+
+export async function archiveTask(args) {
+    const taskname = args[0]
+    info(`archiving the task ${taskname}`)
+    if(await checkTaskMissing(taskname))  return console.log(`ERROR: task missing ${taskname}`)
+    let json = await read_config(taskname)
+    json.archived = true
+    await write_config(taskname,json)
+    json = await read_config(taskname)
+    console.log("wrote out", json)
+}
+
+export async function unarchiveTask(args) {
+    const taskname = args[0]
+    info(`archiving the task ${taskname}`)
+    if(await checkTaskMissing(taskname))  return console.log(`ERROR: task missing ${taskname}`)
+    let json = await read_config(taskname)
+    json.archived = false
+    await write_config(taskname,json)
+    json = await read_config(taskname)
+    console.log("wrote out", json)
 }
 
 

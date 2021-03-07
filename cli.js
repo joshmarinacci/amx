@@ -1,54 +1,25 @@
 #!/usr/bin/env node
-import {getConfig, getConfigDir, getRootDir, initSetup, PORT, startServer} from './common.js'
-import path from 'path'
-import {default as http} from 'http'
-import {default as ch} from 'child_process'
-import {default as fs} from 'fs'
-import {default as tail} from 'tail'
-import {fileURLToPath} from 'url'
+import {initSetup} from './common.js'
 import {
-    checkRunning, editTask, followTask, infoTask,
-    listProcesses, logTask,
-    makeTask, nuke_task,
-    printUsage, printVersion, restartTask, selfStatus,
+    archiveTask,
+    editTask,
+    followTask,
+    infoTask,
+    listProcesses,
+    logTask,
+    makeTask,
+    nuke_task,
+    printUsage,
+    printVersion,
+    restartTask,
+    selfStatus,
     startTask,
-    stopServer, stopTask
+    stopServer,
+    stopTask,
+    unarchiveTask
 } from './src/cli_common.js'
-const Tail = tail.Tail
 
 initSetup();
-
-
-
-function archiveTask(args) {
-    const taskname = args[0]
-    info(`archiving the task ${taskname}`)
-    if(checkTaskMissing(taskname)) return
-    const config = paths.join(getConfigDir(), taskname, 'config.json')
-    const json = JSON.parse(fs.readFileSync(config))
-    json.archived = true
-    fs.writeFileSync(config,JSON.stringify(json,null,"   "))
-    console.log("wrote",JSON.parse(fs.readFileSync(config)))
-}
-
-function unarchiveTask(args) {
-    const taskname = args[0]
-    info(`archiving the task ${taskname}`)
-    if(checkTaskMissing(taskname)) return
-    const config = paths.join(getConfigDir(), taskname, 'config.json')
-    const json = JSON.parse(fs.readFileSync(config))
-    json.archived = false
-    fs.writeFileSync(config,JSON.stringify(json,null,"   "))
-    console.log("wrote",JSON.parse(fs.readFileSync(config)))
-}
-
-
-
-
-
-
-
-
 
 const commands = {
     'list': listProcesses,
@@ -80,9 +51,13 @@ const commands = {
 
 async function runCommand(args) {
     const command = args.shift()
-    if (commands[command]) return await commands[command](args);
-    console.log("no such command: " + command);
-    return printUsage();
+    try {
+        if (commands[command]) return await commands[command](args);
+        return printUsage();
+    } catch (e) {
+        console.log("error")
+        console.error(e)
+    }
 }
 
 
