@@ -17,3 +17,12 @@ export async function read_file(conf_path) {
     return JSON.parse(info)
 }
 
+
+
+export async function sleep(delay) {
+    return new Promise((res,rej)=>{
+        setTimeout(()=>{
+            res()
+        },delay)
+    })
+}

@@ -36,7 +36,7 @@ function listProcesses() {
 
 
 
-const handle_status = (req,res) => {
+const handle_status = async(req,res) => {
     res.statusCode = 200;
     res.setHeader('Content-Type','application/json');
     res.write(JSON.stringify({'status':'alive'}));
@@ -58,6 +58,7 @@ const handle_list = async (req, res) => {
     let pids = await listProcesses()
     res.statusCode = 200;
     const list = await fs.promises.readdir(getConfigDir())
+    l("list of dirs",list)
     res.setHeader('Content-Type', 'application/json');
     let configs = await Promise.all(list.map(async (name) => await getTaskConfig(name)))
     let tasks = await Promise.all(configs.map(async config => {
@@ -209,6 +210,10 @@ const handle_stop = async (req,res) => {
     }
 }
 
+const handle_stopserver = async (req,res) => {
+    SUCCESS(res,"stopping the server");
+    await setTimeout(() => process.exit(-1),100);
+}
 const handlers = {
     '/status': handle_status,
     '/list': handle_list,
@@ -222,10 +227,7 @@ const handlers = {
             .then(cpid => SUCCESS(res,"started task " + task + cpid))
             .catch(err => ERROR(res,"error"+err));
     },
-    '/stopserver':function(req,res) {
-        SUCCESS(res,"stopping the server");
-        setTimeout(() => process.exit(-1),100);
-    },
+    '/stopserver':handle_stopserver,
     '/rescan':function(req,res) {
         const task = parseTaskName(req);
         if(!task) return ERROR(res,"no task specified");

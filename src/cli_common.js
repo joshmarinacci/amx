@@ -34,7 +34,7 @@ export async function makeTask(args) {
 }
 
 
-function printUsage() {
+export function printUsage() {
     console.log("amx make  <taskname>");
     console.log("      make a new task")
     console.log("amx edit  <taskname>");

@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-import {getConfigDir, initSetup} from './common.js'
+import {getConfig, getConfigDir, getRootDir, initSetup, PORT, startServer} from './common.js'
 import {default as paths} from 'path'
 import {default as http} from 'http'
 import {default as ch} from 'child_process'
 import {default as fs} from 'fs'
 import {default as tail} from 'tail'
 import {fileURLToPath} from 'url'
+import {makeTask, printUsage} from './src/cli_common.js'
 const Tail = tail.Tail
 
 initSetup();
@@ -36,7 +37,7 @@ function checkTaskMissing(taskname) {
         error('missing taskname')
         return true
     }
-    const path = paths.join(common.getConfigDir(),taskname)
+    const path = paths.join(getConfigDir(),taskname)
     if(!fs.existsSync(path)) {
         error(`task '${taskname}' does not exist at ${path}`)
         return true
@@ -54,7 +55,7 @@ function doGet(path) {
     return new Promise((resolve,rej) => {
         const req = http.request({
                 host: 'localhost',
-                port: common.PORT,
+                port: PORT,
                 method: 'GET',
                 path: path
             },
@@ -70,10 +71,12 @@ function doGet(path) {
 }
 function doPost(path) {
     return checkRunning().then(()=>{
+        console.log("inside then")
         return new Promise((resolve,rej) => {
+            console.log("should be running now")
             const req = http.request({
                     host: 'localhost',
-                    port: common.PORT,
+                    port: PORT,
                     method: 'POST',
                     path: path
                 },
@@ -86,6 +89,8 @@ function doPost(path) {
             req.on('error', (e)=> rej(e))
             req.end()
         })
+    }).catch(e => {
+        console.log("error happened",e)
     })
 }
 
@@ -111,15 +116,22 @@ function checkRunning() {
     return new Promise((res,rej) => {
         const req = http.request({
                 host:'localhost',
-                port:common.PORT,
+                port:PORT,
                 method:'GET',
                 path:'/status'},
             (response => res(response)))
         req.on('error',e=> {
             if(e.code === 'ECONNREFUSED') {
                 info("can't connect to server. starting")
-                setTimeout(() =>res(),1000)
-                return startServer();
+                setTimeout(() =>{
+                    console.log("finishing promise")
+                    res()
+                },1000)
+                try {
+                    startServer();
+                } catch (e) {
+                    console.log("error starting the server",e)
+                }
             }
         });
         req.end();
@@ -163,7 +175,7 @@ function archiveTask(args) {
     const taskname = args[0]
     info(`archiving the task ${taskname}`)
     if(checkTaskMissing(taskname)) return
-    const config = paths.join(common.getConfigDir(), taskname, 'config.json')
+    const config = paths.join(getConfigDir(), taskname, 'config.json')
     const json = JSON.parse(fs.readFileSync(config))
     json.archived = true
     fs.writeFileSync(config,JSON.stringify(json,null,"   "))
@@ -174,7 +186,7 @@ function unarchiveTask(args) {
     const taskname = args[0]
     info(`archiving the task ${taskname}`)
     if(checkTaskMissing(taskname)) return
-    const config = paths.join(common.getConfigDir(), taskname, 'config.json')
+    const config = paths.join(getConfigDir(), taskname, 'config.json')
     const json = JSON.parse(fs.readFileSync(config))
     json.archived = false
     fs.writeFileSync(config,JSON.stringify(json,null,"   "))
@@ -184,7 +196,7 @@ function unarchiveTask(args) {
 function logTask(args) {
     const taskname = args[0]
     if(checkTaskMissing(taskname)) return
-    const logPath = paths.join(common.getConfigDir(),taskname,'stdout.log')
+    const logPath = paths.join(getConfigDir(),taskname,'stdout.log')
     if(checkMissingFile(logPath)) return
     fs.createReadStream(logPath).pipe(process.stdout);
 }
@@ -192,9 +204,9 @@ function logTask(args) {
 function followTask(args) {
     const taskname = args[0]
     if(checkTaskMissing(taskname)) return
-    const outPath = paths.join(common.getConfigDir(),taskname,'stdout.log')
+    const outPath = paths.join(getConfigDir(),taskname,'stdout.log')
     if(checkMissingFile(outPath)) return
-    const errPath = paths.join(common.getConfigDir(),taskname,'stderr.log')
+    const errPath = paths.join(getConfigDir(),taskname,'stderr.log')
     if(checkMissingFile(errPath)) return
     const stdoutTail = new Tail(outPath)
     stdoutTail.on('line', (data) => console.log(data))
@@ -207,7 +219,7 @@ function followTask(args) {
 function infoTask(args) {
     const taskname = args[0]
     if(checkTaskMissing(taskname)) return
-    const config = paths.join(common.getConfigDir(), taskname, 'config.json')
+    const config = paths.join(getConfigDir(), taskname, 'config.json')
     fs.createReadStream(config).pipe(process.stdout);
 }
 
@@ -218,10 +230,10 @@ function printVersion() {
 function selfStatus() {
     info("AMX");
     printVersion();
-    info("Config", paths.join(common.getRootDir(),'config.json'));
-    info(JSON.stringify(common.getConfig(),null,'    '));
-    info("server on port ", common.PORT);
-    info("process descriptions", common.getConfigDir());
+    info("Config", paths.join(getRootDir(),'config.json'));
+    info(JSON.stringify(getConfig(),null,'    '));
+    info("server on port ", PORT);
+    info("process descriptions", getConfigDir());
 }
 
 function spawnEditor(editorpath, file) {
@@ -232,7 +244,7 @@ function spawnEditor(editorpath, file) {
 function editTask(args) {
     const taskname = args[0]
     if(!taskname) return console.log("ERROR: missing taskname");
-    const config = paths.join(common.getConfigDir(), taskname, 'config.json')
+    const config = paths.join(getConfigDir(), taskname, 'config.json')
     if(process.env.EDITOR) {
         console.log("launching the editor", process.env.EDITOR);
         return spawnEditor(process.env.EDITOR,config);

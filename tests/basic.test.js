@@ -104,13 +104,22 @@ describe("test local server",() => {
         //delete it
         console.log("task config is",conf_path)
         let basedir = paths.dirname(conf_path)
-        console.log('basedir is',basedir)
-        await fs.promises.rmdir(conf_path, {recursive:true})
+        console.log('deleteing dir',basedir)
+        await fs.promises.rmdir(basedir, {recursive:true})
         //confirm it's really deleted
-        let dir_exists = await file_exists(conf_path)
+        let dir_exists = await file_exists(basedir)
         expect(dir_exists).to.equal(false)
         //force delete if needed
         console.log("it's really deleted.")
+
+        //stop the server
+        await chai.request(server)
+            .post('/stopserver')
+            .then(res=>{
+                console.log("done stopping")
+            })
+
+        console.log("should really be stopped now")
     })
 })
 
