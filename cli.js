@@ -7,10 +7,10 @@ import {default as fs} from 'fs'
 import {default as tail} from 'tail'
 import {fileURLToPath} from 'url'
 import {
-    checkRunning, followTask, infoTask,
+    checkRunning, editTask, followTask, infoTask,
     listProcesses, logTask,
     makeTask, nuke_task,
-    printUsage, restartTask,
+    printUsage, printVersion, restartTask, selfStatus,
     startTask,
     stopServer, stopTask
 } from './src/cli_common.js'
@@ -45,65 +45,37 @@ function unarchiveTask(args) {
 
 
 
-async function printVersion() {
-    let dir = path.dirname(fileURLToPath(import.meta.url))
-    let data = await fs.promises.readFile(path.join(dir,'package.json'))
-    info(JSON.parse(data.toString()).version)
-}
 
-function selfStatus() {
-    info("AMX");
-    printVersion();
-    info("Config", paths.join(getRootDir(),'config.json'));
-    info(JSON.stringify(getConfig(),null,'    '));
-    info("server on port ", PORT);
-    info("process descriptions", getConfigDir());
-}
 
-function spawnEditor(editorpath, file) {
-    const vim = ch.spawn(editorpath, [file], { stdio: 'inherit' })
-    vim.on('exit', code => info(`done editing ${file}`))
-}
 
-function editTask(args) {
-    const taskname = args[0]
-    if(!taskname) return console.log("ERROR: missing taskname");
-    const config = paths.join(getConfigDir(), taskname, 'config.json')
-    if(process.env.EDITOR) {
-        console.log("launching the editor", process.env.EDITOR);
-        return spawnEditor(process.env.EDITOR,config);
-    } else {
-        //detect location of pico
-        return ch.exec('which pico', function(err,stdout,stderr) {
-            if(err && err.code == 1) {
-                return ch.exec('which vi',function(err,stdout,stderr) {
-                    if (err && err.code == 1) return console.log("no valid editor not found. please set the EDITOR variable");
-                    return spawnEditor(stdout.trim(),config);
-                });
-            }
-            return spawnEditor(stdout.trim(),config);
-        });
-    }
-}
 
 
 const commands = {
     'list': listProcesses,
     'stopserver':stopServer,
+    'version':printVersion,
+    'selfstatus':selfStatus,
+
+    //create task
     'make':makeTask,
+
+    //start and stop tasks
     'start':startTask,
-    'nuke':nuke_task,
     'stop':stopTask,
+    'restart':restartTask,
+
+    //monitor tasks
     'log':logTask,
     'follow':followTask,
     'info':infoTask,
-    'restart':restartTask,
 
+    //modify task
+    'edit':editTask,
     'archive':archiveTask,
     'unarchive':unarchiveTask,
-    'version':printVersion,
-    'edit':editTask,
-    'selfstatus':selfStatus,
+
+    //destroy task
+    'nuke':nuke_task,
 };
 
 async function runCommand(args) {

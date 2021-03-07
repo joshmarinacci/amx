@@ -1,9 +1,12 @@
 import {default as paths} from 'path'
-import {getConfigDir, PORT, startServer} from '../common.js'
+import {getConfig, getConfigDir, getRootDir, PORT, startServer} from '../common.js'
 import {promises as fs, createReadStream} from 'fs'
 import {file_exists, info, pad} from './amx_common.js'
 import {default as http} from 'http'
 import {Tail} from 'tail'
+import {fileURLToPath} from 'url'
+import {default as ch} from 'child_process'
+
 
 const CONFIG_TEMPLATE = {
     name:"unnamed task",
@@ -109,6 +112,37 @@ export async function nuke_task(args) {
     info("nuking ", taskdir)
     await fs.rmdir(taskdir, {recursive:true})
 }
+
+async function which_command(cmd) {
+    return new Promise((res,rej)=>{
+        ch.exec(`which ${cmd}`,(err,stdout,stderr) => {
+            // console.log("done",err,stdout,stderr)
+            if(err) res([stderr,err])
+            res([stdout.trim(),0])
+        })
+    })
+}
+
+export async function editTask(args) {
+    const taskname = args[0]
+    if(!taskname) return console.log("ERROR: missing taskname");
+    const config = paths.join(getConfigDir(), taskname, 'config.json')
+    if(process.env.EDITOR) {
+        return spawnEditor(process.env.EDITOR,config);
+    }
+    //detect location of pico
+    let [stdout_pico, pico] = await which_command('pico')
+    if(pico === 0) return spawnEditor(stdout_pico,config)
+    let [stdout_vi, vi] = await which_command('vi')
+    if(vi === 0) return spawnEditor(stdout_vi,config)
+    return console.log("no valid editor not found. please set the EDITOR variable");
+}
+
+function spawnEditor(editorpath, file) {
+    const vim = ch.spawn(editorpath, [file], { stdio: 'inherit' })
+    vim.on('exit', code => info(`done editing ${file}`))
+}
+
 
 export async function stopServer() {
     await checkRunning()
@@ -226,4 +260,20 @@ export function printUsage() {
     console.log("      version of AMX from NPM")
     console.log("amx selfstatus");
     console.log("      print version, config, status information of AMX itself")
+}
+
+export async function printVersion() {
+    let dir = paths.dirname(fileURLToPath(import.meta.url))
+    let data = await fs.readFile(paths.join(dir,'..','package.json'))
+    info(JSON.parse(data.toString()).version)
+}
+
+
+export async function selfStatus() {
+    info("AMX");
+    await printVersion();
+    info("Config", paths.join(getRootDir(),'config.json'));
+    info(JSON.stringify(getConfig(),null,'    '));
+    info("server on port ", PORT);
+    info("process descriptions", getConfigDir());
 }
