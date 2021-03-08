@@ -46,8 +46,6 @@ const handle_status = async (req,res) => {
     res.write(JSON.stringify({'status':'alive'}));
     res.end();
 }
-
-
 const handle_list = async (req, res) => {
     let pids = await listProcesses()
     res.statusCode = 200;
@@ -69,6 +67,64 @@ const handle_list = async (req, res) => {
     res.write(JSON.stringify({'count': tasks.length, tasks: tasks}));
     res.end();
 }
+const handle_stopserver = async (req,res) => {
+    SUCCESS(res,"stopping the server");
+    await setTimeout(() => process.exit(-1),100);
+}
+
+const handle_start = async (req,res) => {
+    const taskname = parseTaskName(req);
+    await checkTaskMissing(taskname)
+    let cpid = await startTask(taskname)
+    SUCCESS(res, "started task " + taskname + ' ' + cpid)
+}
+const handle_stop = async (req,res) => {
+    const taskname = parseTaskName(req);
+    await checkTaskMissing(taskname)
+    await stopTask(taskname)
+    SUCCESS(res, "successfully killed " + taskname)
+}
+const handle_restart = async (req,res) => {
+    const task = parseTaskName(req)
+    await checkTaskMissing(taskname)
+    await stopTask(task)
+    let cpid = await startTask(task)
+    SUCCESS(res, "started task " + task + ' ' + cpid)
+}
+
+const handle_rescan = async (req,res) => {
+    const task = parseTaskName(req);
+    if(!task) return ERROR(res,"no task specified");
+}
+const handle_webhook = async (req,res) => {
+    log("got a webhook");
+    const parts = URL.parse(req.url)
+    log("path = ", parts.pathname);
+    log("headers = ", req.headers);
+    const taskname = parts.pathname.substring('/webhook/'.length)
+    log("taskname = ", taskname);
+    await checkTaskMissing(taskname)
+    const config = await read_task_config(taskname)
+    log("config is",config)
+    if (!config.watch) return ERROR(res, "task not configured for watching");
+    parsePost(req, function (err, payload) {
+        if (!validateSecret(payload, config, req.headers)) return ERROR(res, "webhook validation failed")
+        const task = taskname
+        if (!taskExists(task)) return ERROR(res, "no such task " + taskname);
+        log("got the webhook to refresh the process");
+        stopTask(taskname).then(() => {
+            log("task is stopped");
+            updateTask(taskname, function () {
+                log("task is updated");
+                startTask(taskname).then(() => {
+                    log("task is started");
+                    return SUCCESS(res, "got the webhook");
+                });
+            });
+        });
+    })
+}
+
 
 function parseTaskName(req) {
     return URL.parse(req.url).query.split('=')[1]
@@ -86,13 +142,11 @@ async function getTaskPid(task) {
     return parseInt(raw.toString());
 }
 
-
 const task_map = {};
 function getTaskRestartInfo(taskname) {
     if(!task_map[taskname]) { task_map[taskname] = { restart_times:[], enabled:true } }
     return task_map[taskname];
 }
-
 
 async function reallyStartTask(task, cb) {
     log("realling starting the task", task)
@@ -155,18 +209,6 @@ async function startTask(task) {
     return reallyStartTask(task)
 }
 
-const handle_start = async (req,res) => {
-    const task = parseTaskName(req);
-    try {
-        if (!(await taskExists(task))) return ERROR(res, "no such task " + task);
-        let cpid = await startTask(task)
-        SUCCESS(res, "started task " + task + ' ' + cpid)
-    } catch (e) {
-        console.error("ERROR!",e)
-        ERROR(res, "error" + e)
-    }
-}
-
 async function stopTask(task, cb) {
     getTaskRestartInfo(task).enabled = false;
     const pid = await getTaskPid(task);
@@ -181,29 +223,6 @@ async function stopTask(task, cb) {
     }
 }
 
-const handle_stop = async (req,res) => {
-    try {
-        const task = parseTaskName(req);
-        if (!(await taskExists(task))) return ERROR(res, "no such task " + task);
-        await stopTask(task)
-        SUCCESS(res, "successfully killed " + task)
-    } catch(err) {
-        ERROR(res,"error from killing " + err)
-    }
-}
-
-const handle_stopserver = async (req,res) => {
-    SUCCESS(res,"stopping the server");
-    await setTimeout(() => process.exit(-1),100);
-}
-const handle_restart = async (req,res) => {
-    const task = parseTaskName(req)
-    if (!(await taskExists(task))) return ERROR(res, "no such task " + task);
-    await stopTask(task)
-    let cpid = await startTask(task)
-    SUCCESS(res, "started task " + task + ' ' + cpid)
-}
-
 const handlers = {
     '/status': handle_status,
     '/list': handle_list,
@@ -211,38 +230,8 @@ const handlers = {
     '/start': handle_start,
     '/restart':handle_restart,
     '/stopserver':handle_stopserver,
-    '/rescan':function(req,res) {
-        const task = parseTaskName(req);
-        if(!task) return ERROR(res,"no task specified");
-    },
-    '/webhook': async function (req, res) {
-        log("got a webhook");
-        const parts = URL.parse(req.url)
-        log("path = ", parts.pathname);
-        log("headers = ", req.headers);
-        const taskname = parts.pathname.substring('/webhook/'.length)
-        log("taskname = ", taskname);
-        await checkTaskMissing(taskname)
-        const config = await read_task_config(taskname)
-        log("config is",config)
-        if (!config.watch) return ERROR(res, "task not configured for watching");
-        parsePost(req, function (err, payload) {
-            if (!validateSecret(payload, config, req.headers)) return ERROR(res, "webhook validation failed")
-            const task = taskname
-            if (!taskExists(task)) return ERROR(res, "no such task " + taskname);
-            log("got the webhook to refresh the process");
-            stopTask(taskname).then(() => {
-                log("task is stopped");
-                updateTask(taskname, function () {
-                    log("task is updated");
-                    startTask(taskname).then(() => {
-                        log("task is started");
-                        return SUCCESS(res, "got the webhook");
-                    });
-                });
-            });
-        });
-    }
+    '/rescan': handle_rescan,
+    '/webhook': handle_webhook,
 };
 
 export function make_server() {
