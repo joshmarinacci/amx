@@ -1,10 +1,12 @@
 {
   "name": "amx",
-  "version": "0.0.31",
+  "version": "1.0.0",
   "description": "AMX: automatic process manager",
   "main": "src/cli.js",
   "type": "module",
-  "bin": "./src/cli.js",
+  "bin": {
+    "amx": "src/cli.js"
+  },
   "directories": {
     "test": "tests"
   },
