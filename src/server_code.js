@@ -85,11 +85,11 @@ const handle_stop = async (req,res) => {
     SUCCESS(res, "successfully killed " + taskname)
 }
 const handle_restart = async (req,res) => {
-    const task = parseTaskName(req)
+    const taskname = parseTaskName(req)
     await checkTaskMissing(taskname)
-    await stopTask(task)
-    let cpid = await startTask(task)
-    SUCCESS(res, "started task " + task + ' ' + cpid)
+    await stopTask(taskname)
+    let cpid = await startTask(taskname)
+    SUCCESS(res, "started task " + taskname + ' ' + cpid)
 }
 
 const handle_rescan = async (req,res) => {
