@@ -112,3 +112,17 @@ export async function write_task_config(taskname, json) {
     const config_path = paths.join(getConfigDir(), taskname, 'config.json')
     await fs.promises.writeFile(config_path, JSON.stringify(json, null, "   "))
 }
+
+export function copy_object_props(src, dst) {
+    for(const name in src) {
+        dst[name] = src[name];
+    }
+}
+
+export async function checkTaskMissing(taskname) {
+    if (!taskname) throw new Error(`No such task: "${taskname}"`)
+    const path = paths.join(getConfigDir(), taskname)
+    let exits = await file_exists(path);
+    if(!exits) throw new Error(`No such task: "${taskname}"`)
+    return true
+}

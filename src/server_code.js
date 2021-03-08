@@ -3,7 +3,14 @@ import http from 'http'
 import child_process from "child_process"
 import fs from 'fs'
 import paths from 'path'
-import {file_exists, getConfigDir, read_task_config, log} from "./amx_common.js"
+import {
+    file_exists,
+    getConfigDir,
+    read_task_config,
+    log,
+    copy_object_props,
+    checkTaskMissing
+} from "./amx_common.js"
 
 
 function ERROR(res,str) {
@@ -33,7 +40,7 @@ function listProcesses() {
     })
 }
 
-const handle_status = async(req,res) => {
+const handle_status = async (req,res) => {
     res.statusCode = 200;
     res.setHeader('Content-Type','application/json');
     res.write(JSON.stringify({'status':'alive'}));
@@ -41,15 +48,10 @@ const handle_status = async(req,res) => {
 }
 
 
-function l() {
-    console.log(...arguments)
-}
 const handle_list = async (req, res) => {
-    l("listing")
     let pids = await listProcesses()
     res.statusCode = 200;
     const list = await fs.promises.readdir(getConfigDir())
-    l("list of dirs",list)
     res.setHeader('Content-Type', 'application/json');
     let configs = await Promise.all(list.map(async (name) => await read_task_config(name)))
     let tasks = await Promise.all(configs.map(async config => {
@@ -64,7 +66,6 @@ const handle_list = async (req, res) => {
             archived: config.archived,
         }
     }))
-    l("task",tasks)
     res.write(JSON.stringify({'count': tasks.length, tasks: tasks}));
     res.end();
 }
@@ -92,20 +93,11 @@ function getTaskRestartInfo(taskname) {
     return task_map[taskname];
 }
 
-function copyInto(src,dst) {
-    for(const name in src) {
-        dst[name] = src[name];
-    }
-}
 
 async function reallyStartTask(task, cb) {
     log("realling starting the task", task)
     const config = await read_task_config(task)
-    // log("task info is", config)
     const taskdir = paths.join(getConfigDir(), task)
-    // log("taskdir is",taskdir)
-    // const config = JSON.parse(fs.readFileSync(paths.join(taskdir, 'config.json')).toString())
-    // log("config is", config)
     if (!(await file_exists(config.directory))) throw new Error("directory does not exist " + config.directory)
     let cargs = []
     let command = null
@@ -133,14 +125,13 @@ async function reallyStartTask(task, cb) {
         ],
         env: {}
     };
-    copyInto(process.env, opts.env);
-    if (config.env) copyInto(config.env, opts.env);
-    // log("spawning", command, cargs/*,opts*/);
+    copy_object_props(process.env, opts.env);
+    if (config.env) copy_object_props(config.env, opts.env);
     const child = child_process.spawn(command, cargs, opts)
     child.on('error', err => log("error spawning ", command))
     await fs.promises.writeFile(paths.join(taskdir,'pid'), '' + child.pid);
     child.unref();
-    log("done. returning pid")
+    log("done starting. returning pid")
     return child.pid
 }
 
@@ -206,18 +197,11 @@ const handle_stopserver = async (req,res) => {
     await setTimeout(() => process.exit(-1),100);
 }
 const handle_restart = async (req,res) => {
-    try {
-        const task = parseTaskName(req)
-        if (!(await taskExists(task))) return ERROR(res, "no such task " + task);
-        await stopTask(task)
-        let cpid = await startTask(task)
-        SUCCESS(res, "started task " + task + ' ' + cpid)
-    } catch (e) {
-        ERROR(res, "error" + e)
-    }
-        // .then(()=> startTask(task))
-        // .then(cpid => SUCCESS(res,"started task " + task + cpid))
-        // .catch(err => ERROR(res,"error"+err));
+    const task = parseTaskName(req)
+    if (!(await taskExists(task))) return ERROR(res, "no such task " + task);
+    await stopTask(task)
+    let cpid = await startTask(task)
+    SUCCESS(res, "started task " + task + ' ' + cpid)
 }
 
 const handlers = {
@@ -231,27 +215,29 @@ const handlers = {
         const task = parseTaskName(req);
         if(!task) return ERROR(res,"no task specified");
     },
-    '/webhook': function(req,res) {
+    '/webhook': async function (req, res) {
         log("got a webhook");
         const parts = URL.parse(req.url)
-        log("path = ",parts.pathname);
+        log("path = ", parts.pathname);
         log("headers = ", req.headers);
         const taskname = parts.pathname.substring('/webhook/'.length)
         log("taskname = ", taskname);
-        const config = read_task_config(taskname)
-        if(!config.watch) return ERROR(res, "task not configured for watching");
-        parsePost(req,function(err, payload) {
-            if(!validateSecret(payload,config,req.headers)) return ERROR(res,"webhook validation failed")
+        await checkTaskMissing(taskname)
+        const config = await read_task_config(taskname)
+        log("config is",config)
+        if (!config.watch) return ERROR(res, "task not configured for watching");
+        parsePost(req, function (err, payload) {
+            if (!validateSecret(payload, config, req.headers)) return ERROR(res, "webhook validation failed")
             const task = taskname
-            if(!taskExists(task)) return ERROR(res,"no such task " + taskname);
+            if (!taskExists(task)) return ERROR(res, "no such task " + taskname);
             log("got the webhook to refresh the process");
-            stopTask(taskname).then(()=>{
+            stopTask(taskname).then(() => {
                 log("task is stopped");
-                updateTask(taskname, function() {
+                updateTask(taskname, function () {
                     log("task is updated");
-                    startTask(taskname).then(() =>{
+                    startTask(taskname).then(() => {
                         log("task is started");
-                        return SUCCESS(res,"got the webhook");
+                        return SUCCESS(res, "got the webhook");
                     });
                 });
             });
@@ -263,14 +249,28 @@ export function make_server() {
     return http.createServer(function(req,res) {
         console.log("inside the request",req.url)
         const parts = URL.parse(req.url)
-        if(handlers[parts.pathname]) {
-            return handlers[parts.pathname](req, res)
-                .catch(e => {
-                    l("ERROR")
-                    console.error(e)
-                })
+        let pathname = parts.pathname
+        console.log("pathname is",pathname)
+        // if(parts.pathname.indexOf('/webhook')>=0) pathname = '/webhook'
+        if(handlers[pathname]) {
+            try {
+                return handlers[pathname](req, res)
+                    .catch(e => {
+                        log("ERROR with handler",pathname)
+                        console.error(e)
+                        ERROR(res, "error" + e)
+                    })
+            } catch (e) {
+                try {
+                    ERROR(res, "error" + e)
+                } catch (ee) {
+                    console.log("final error")
+                    console.error(ee)
+                    res.end()
+                    return
+                }
+            }
         }
-        if(parts.pathname.indexOf('/webhook')>=0) return handlers['/webhook'](req,res);
         log("no handler");
         res.statusCode = 200;
         res.setHeader('Content-Type','text/json');

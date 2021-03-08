@@ -5,7 +5,7 @@ import {
     getConfigDir,
     getRootDir, read_task_config,
     PORT,
-    startServer, write_task_config
+    startServer, write_task_config, checkTaskMissing
 } from './amx_common.js'
 import {promises as fs, createReadStream} from 'fs'
 import {file_exists, info, pad} from './amx_common.js'
@@ -13,7 +13,6 @@ import {default as http} from 'http'
 import {Tail} from 'tail'
 import {fileURLToPath} from 'url'
 import {default as ch} from 'child_process'
-
 
 export async function listProcesses() {
     await checkRunning()
@@ -165,15 +164,6 @@ export async function nuke_task(args) {
 }
 
 
-
-async function checkTaskMissing(taskname) {
-    if (!taskname) return true
-    const path = paths.join(getConfigDir(), taskname)
-    let exits = await file_exists(path);
-    if(!exits) throw new Error(`No such task: "${taskname}"`)
-    return true
-}
-
 async function which_command(cmd) {
     return new Promise((res,rej)=>{
         ch.exec(`which ${cmd}`,(err,stdout,stderr) => {
@@ -208,7 +198,6 @@ export function checkRunning() {
         req.end();
     })
 }
-
 
 function spawnEditor(editorpath, file) {
     const vim = ch.spawn(editorpath, [file], { stdio: 'inherit' })
