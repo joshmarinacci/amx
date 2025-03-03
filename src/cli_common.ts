@@ -1,31 +1,45 @@
 import {default as paths} from 'path'
 import {
+    checkTaskMissing,
     CONFIG_TEMPLATE,
+    file_exists,
     getConfig,
     getConfigDir,
-    getRootDir, read_task_config,
+    getRootDir,
+    info,
+    pad,
     PORT,
-    startServer, write_task_config, checkTaskMissing
+    read_task_config,
+    startServer,
+    write_task_config
 } from './amx_common'
-import {promises as fs, createReadStream} from 'fs'
-import {file_exists, info, pad} from './amx_common'
-import {default as http} from 'http'
-// import {Tail} from 'tail'
+import {createReadStream, promises as fs} from 'fs'
 import {fileURLToPath} from 'url'
 import {default as ch} from 'child_process'
+import {sleep} from "josh_js_util";
 
+type Task = {
+    name: string,
+    path:string,
+    running:boolean,
+    pid:number,
+    archived?:boolean,
+}
 export async function listProcesses() {
     await checkRunning()
-    let data = await doGet('/list')
-    let tasks:any[] = data.tasks
-    if(tasks.length <= 0) return console.log("no running tasks");
-    tasks.forEach(task => {
-        info("task " ,
-            pad(task.name,20),
-            task.running?'running':'stopped',
-            task.pid,
-            task.archived?'archived':'active')
-    });
+    let req = await fetch(`http://localhost:${PORT}/list`)
+    const data = await req.json()
+    if(data['tasks']) {
+        let tasks: Task[] = data.tasks
+        if (tasks.length <= 0) return console.log("no running tasks");
+        tasks.forEach(task => {
+            info("task ",
+                pad(task.name, 20),
+                task.running ? 'running' : 'stopped',
+                task.pid,
+                task.archived ? 'archived' : 'active')
+        });
+    }
 }
 export async function stopServer() {
     await checkRunning()
@@ -173,29 +187,14 @@ async function which_command(cmd:string):Promise<[string,number]> {
     })
 }
 
-export function checkRunning() {
-    return new Promise((res,rej) => {
-        console.log("checking if local server is running")
-        const req = http.request({
-                host:'localhost',
-                port:PORT,
-                method:'GET',
-                path:'/status'},
-            (response => res(response)))
-        req.on('error',e=> {
-            console.log("got an error",e)
-            if(e.code === 'ECONNREFUSED') {
-                info("can't connect to server. starting")
-                try {
-                    startServer();
-                } catch (e) {
-                    console.log("error starting the server",e)
-                }
-                res()
-            }
-        });
-        req.end();
-    })
+export async function checkRunning() {
+    try {
+        await fetch(`http://localhost:${PORT}/status`)
+    } catch (e) {
+        console.log("server doesn't seem to be running. lets start it")
+        startServer()
+        await sleep(1)
+    }
 }
 
 function spawnEditor(editorpath, file) {
@@ -203,46 +202,9 @@ function spawnEditor(editorpath, file) {
     vim.on('exit', code => info(`done editing ${file}`))
 }
 
-function doGet(path) {
-    return new Promise((resolve,rej) => {
-        const req = http.request({
-                host: 'localhost',
-                port: PORT,
-                method: 'GET',
-                path: path
-            },
-            (res) => {
-                let chunks = ""
-                res.on('data', (data) => chunks += data.toString())
-                res.on('end', () => resolve(JSON.parse(chunks)))
-            }
-        );
-        req.on('error', (e)=> rej(e))
-        req.end()
-    })
-}
-
-function doPost(path) {
-    return checkRunning().then(()=>{
-        return new Promise((resolve,rej) => {
-            const req = http.request({
-                    host: 'localhost',
-                    port: PORT,
-                    method: 'POST',
-                    path: path
-                },
-                (res) => {
-                    let chunks = ""
-                    res.on('data', (data) => chunks += data.toString())
-                    res.on('end', () => resolve(JSON.parse(chunks)))
-                }
-            );
-            req.on('error', (e)=> rej(e))
-            req.end()
-        })
-    }).catch(e => {
-        console.log("error happened",e)
-    })
+async function doPost(path) {
+    let req = await fetch(`http://localhost:${PORT}/${path}`,{  method: 'POST', })
+    return await req.json()
 }
 
 export function printUsage() {

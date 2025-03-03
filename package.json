@@ -16,7 +16,8 @@
     "try-cli": "npm run build && node build/cli.js",
     "try-cli-version": "npm run build && node build/cli.js selfstatus",
     "try-cli-list": "npm run build && node build/cli.js list",
-    "try-server": "npm run build && node build/server_start.js"
+    "try-server": "npm run build && node build/server_start.js",
+    "try-stopserver": "npm run build && node build/cli.js stopserver"
   },
   "repository": {
     "type": "git",
