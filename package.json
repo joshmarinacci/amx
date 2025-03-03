@@ -4,6 +4,10 @@
   "description": "AMX: automatic process manager",
   "main": "src/cli.ts",
   "type": "module",
+  "files": [
+    "build/cli.js",
+    "build/server_start.js"
+  ],
   "bin": {
     "amx": "build/cli.js"
   },
@@ -17,7 +21,8 @@
     "try-cli-version": "npm run build && node build/cli.js selfstatus",
     "try-cli-list": "npm run build && node build/cli.js list",
     "try-server": "npm run build && node build/server_start.js",
-    "try-stopserver": "npm run build && node build/cli.js stopserver"
+    "try-stopserver": "npm run build && node build/cli.js stopserver",
+    "release-patch": "npm run build && npm version patch && npm publish"
   },
   "repository": {
     "type": "git",
