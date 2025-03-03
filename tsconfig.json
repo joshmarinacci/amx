@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "ES2022",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noEmitOnError": false,
+    "skipLibCheck": true,
+    "outDir": "build"
+  },
+  "include": ["src"]
+}

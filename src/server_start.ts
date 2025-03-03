@@ -1,5 +1,5 @@
-import {getConfig, initSetup, log, PORT, sleep} from './amx_common.js'
-import {make_server} from './server_code.js'
+import {getConfig, initSetup, log, PORT, sleep} from './amx_common'
+import {make_server} from './server_code'
 
 initSetup();
 

@@ -10,7 +10,7 @@ import {
     log,
     copy_object_props,
     checkTaskMissing
-} from "./amx_common.js"
+} from "./amx_common"
 
 
 function ERROR(res,str) {
@@ -29,13 +29,13 @@ function SUCCESS(res,str) {
     res.end();
 }
 
-function listProcesses() {
+function listProcesses():Promise<number[]> {
     return new Promise((res,rej) => {
         child_process.exec('ps ax -o pid=',(err,stdout) => {
-            let lines = stdout.split('\n');
-            lines = lines.map((line) =>parseInt(line))
-            lines = lines.filter((line) => !isNaN(line))
-            res(lines)
+            const lines = stdout.split('\n');
+            let nums:number[] = lines.map((line) =>parseInt(line))
+            nums = nums.filter((line) => !isNaN(line))
+            res(nums)
         });
     })
 }
@@ -209,7 +209,7 @@ async function startTask(task) {
     return reallyStartTask(task)
 }
 
-async function stopTask(task, cb) {
+async function stopTask(task:string, cb) {
     getTaskRestartInfo(task).enabled = false;
     const pid = await getTaskPid(task);
     let pids = await listProcesses()

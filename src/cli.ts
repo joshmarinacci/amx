@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import {
     archiveTask,
     editTask,
@@ -16,8 +15,8 @@ import {
     stopServer,
     stopTask,
     unarchiveTask
-} from './cli_common.js'
-import {initSetup} from './amx_common.js'
+} from './cli_common'
+import {initSetup} from './amx_common'
 
 initSetup();
 
@@ -67,5 +66,6 @@ if(args.length < 3) {
     args.shift();
     args.shift();
     await runCommand(args);
+    console.log("done running ")
 }
 

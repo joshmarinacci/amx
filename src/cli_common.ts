@@ -6,18 +6,18 @@ import {
     getRootDir, read_task_config,
     PORT,
     startServer, write_task_config, checkTaskMissing
-} from './amx_common.js'
+} from './amx_common'
 import {promises as fs, createReadStream} from 'fs'
-import {file_exists, info, pad} from './amx_common.js'
+import {file_exists, info, pad} from './amx_common'
 import {default as http} from 'http'
-import {Tail} from 'tail'
+// import {Tail} from 'tail'
 import {fileURLToPath} from 'url'
 import {default as ch} from 'child_process'
 
 export async function listProcesses() {
     await checkRunning()
     let data = await doGet('/list')
-    let tasks = data.tasks
+    let tasks:any[] = data.tasks
     if(tasks.length <= 0) return console.log("no running tasks");
     tasks.forEach(task => {
         info("task " ,
@@ -164,7 +164,7 @@ export async function nuke_task(args) {
 }
 
 
-async function which_command(cmd) {
+async function which_command(cmd:string):Promise<[string,number]> {
     return new Promise((res,rej)=>{
         ch.exec(`which ${cmd}`,(err,stdout,stderr) => {
             if(err) res([stderr,err])
@@ -175,6 +175,7 @@ async function which_command(cmd) {
 
 export function checkRunning() {
     return new Promise((res,rej) => {
+        console.log("checking if local server is running")
         const req = http.request({
                 host:'localhost',
                 port:PORT,
@@ -182,17 +183,15 @@ export function checkRunning() {
                 path:'/status'},
             (response => res(response)))
         req.on('error',e=> {
+            console.log("got an error",e)
             if(e.code === 'ECONNREFUSED') {
                 info("can't connect to server. starting")
-                setTimeout(() =>{
-                    console.log("finishing promise")
-                    res()
-                },1000)
                 try {
                     startServer();
                 } catch (e) {
                     console.log("error starting the server",e)
                 }
+                res()
             }
         });
         req.end();

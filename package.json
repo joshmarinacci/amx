@@ -1,17 +1,22 @@
 {
   "name": "amx",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "AMX: automatic process manager",
-  "main": "src/cli.js",
+  "main": "src/cli.ts",
   "type": "module",
   "bin": {
-    "amx": "src/cli.js"
+    "amx": "build/cli.js"
   },
   "directories": {
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "tsc": "tsc",
+    "build": "esbuild src/cli.ts src/server_start.ts --outdir=build --bundle --target=es2022 --platform=node --format=esm",
+    "try-cli": "npm run build && node build/cli.js",
+    "try-cli-version": "npm run build && node build/cli.js selfstatus",
+    "try-cli-list": "npm run build && node build/cli.js list",
+    "try-server": "npm run build && node build/server_start.js"
   },
   "repository": {
     "type": "git",
@@ -30,11 +35,12 @@
   "homepage": "https://github.com/joshmarinacci/amx#readme",
   "dependencies": {
     "chai-http": "^4.3.0",
-    "nodemailer": "^2.3.2",
-    "tail": "^1.2.3"
+    "josh_js_util": "^0.1.39"
   },
   "devDependencies": {
     "chai": "^4.3.3",
-    "mocha": "^8.3.1"
+    "esbuild": "^0.25.0",
+    "mocha": "^8.3.1",
+    "typescript": "^5.8.2"
   }
 }

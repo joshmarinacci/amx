@@ -1,24 +1,24 @@
-import {make_server} from '../src/server_code.js'
+import {make_server} from '../src/server_code.ts'
 import fs from 'fs'
 import chai, {expect} from "chai"
 import chaiHttp from 'chai-http'
 import paths from 'path'
-import {file_exists, initSetup, read_file} from '../src/amx_common.js'
-import {makeTask} from '../src/cli_common.js'
+import {file_exists, initSetup, read_file} from '../src/amx_common.ts'
+import {makeTask} from '../src/cli_common.ts'
 
 chai.use(chaiHttp)
 
-describe('silly.io test',() => {
-    it('should get the status page',  (done) => {
-    chai.request('http://api.silly.io')
-        .get('/')
-        .end((err,res)=>{
-            expect(res.status).to.equal(200)
-            // res.body.should.be({'status':'ok'})
-            done()
-        })
-    })
-})
+// describe('silly.io test',() => {
+//     it('should get the status page',  (done) => {
+//     chai.request('http://api.silly.io')
+//         .get('/')
+//         .end((err,res)=>{
+//             expect(res.status).to.equal(200)
+//             // res.body.should.be({'status':'ok'})
+//             done()
+//         })
+//     })
+// })
 
 describe("test local server",() => {
     initSetup()
