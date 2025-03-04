@@ -67,9 +67,9 @@ export async function init():Promise<Config> {
 
 export function startServer() {
     let dirname = path.dirname(fileURLToPath(import.meta.url))
-    p.info("dirname",dirname)
+    p.info(`starting server in "${dirname}"`)
     let outlog_path = path.resolve(dirname,'out.log')
-    p.info('log path',outlog_path)
+    p.info(`writing log to "${outlog_path}"`)
     const out = fs.openSync(outlog_path, 'a')
     const err = fs.openSync(outlog_path, 'a')
     let server_path = path.resolve(dirname,'server_start.js')

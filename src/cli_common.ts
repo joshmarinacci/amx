@@ -183,7 +183,7 @@ export async function checkRunning(config: Config) {
     try {
         await fetch(`http://localhost:${config.getPort()}/status`)
     } catch (e) {
-        console.log("server doesn't seem to be running. lets start it")
+        p.info("server doesn't seem to be running. lets start it")
         startServer()
         await sleep(1)
     }
