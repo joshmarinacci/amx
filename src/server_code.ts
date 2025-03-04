@@ -65,7 +65,7 @@ const handle_list:Handler = async (req, res) => {
         if (pids.indexOf(pid) >= 0) running = true;
         return {
             name: con.name,
-            path: paths.join(config.getProcsDir(), con.name),
+            path: config.getTaskDir(con.name),
             running: running,
             pid: pid,
             archived: con.archived,
@@ -160,10 +160,10 @@ function getTaskRestartInfo(taskname:string):TaskRestartInfo {
     return task_map[taskname];
 }
 
-async function reallyStartTask(config:Config, task:string) {
-    log("realling starting the task", task)
-    const config_json = await read_task_config(config, task)
-    const taskdir = paths.join(config.getProcsDir(), task)
+async function reallyStartTask(config:Config, taskname:string) {
+    log("realling starting the task", taskname)
+    const config_json = await read_task_config(config, taskname)
+    const task_dir = config.getTaskDir(taskname)
     if (!(await file_exists(config_json.directory))) throw new Error("directory does not exist " + config_json.directory)
     let cargs = []
     let command = null
@@ -186,8 +186,8 @@ async function reallyStartTask(config:Config, task:string) {
         detached: true,
         stdio: [
             'ignore',
-            fs.openSync(paths.join(taskdir, 'stdout.log'), 'a'),  // Standard Out
-            fs.openSync(paths.join(taskdir, 'stderr.log'), 'a'),  // Standard Error
+            fs.openSync(paths.join(task_dir, 'stdout.log'), 'a'),  // Standard Out
+            fs.openSync(paths.join(task_dir, 'stderr.log'), 'a'),  // Standard Error
         ],
         env: {}
     };
@@ -195,7 +195,7 @@ async function reallyStartTask(config:Config, task:string) {
     if (config_json.env) copy_object_props(config_json.env, opts.env);
     const child:ChildProcessWithoutNullStreams = child_process.spawn(command, cargs, opts)
     child.on('error', err => log("error spawning ", command))
-    await fs.promises.writeFile(paths.join(taskdir,'pid'), '' + child.pid);
+    await fs.promises.writeFile(paths.join(task_dir,'pid'), '' + child.pid);
     child.unref();
     log("done starting. returning pid")
     return child.pid

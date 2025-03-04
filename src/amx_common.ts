@@ -27,6 +27,10 @@ export class Config {
     getProcsDir() {
         return this.procs;
     }
+
+    getTaskDir(taskname: string):string {
+        return paths.join(this.getProcsDir(),taskname)
+    }
 }
 export async function init():Promise<Config> {
     if(!process.env.HOME) fail('Cannot calculate HOME')
@@ -84,7 +88,7 @@ export async function read_file(conf_path:string) {
 
 export async function read_task_config(config:Config,taskname:string) {
     p.info("taskname",taskname)
-    const taskdir = paths.join(config.getProcsDir(), taskname)
+    const taskdir = config.getTaskDir(taskname)
     const config_file = paths.join(taskdir, 'config.json')
     let data = await fs.promises.readFile(config_file)
     return JSON.parse(data.toString())
@@ -105,8 +109,8 @@ export function copy_object_props(src:object, dst:object) {
 
 export async function checkTaskMissing(config:Config, taskname:string) {
     if (!taskname) throw new Error(`No such task: "${taskname}"`)
-    const path = paths.join(config.getProcsDir(), taskname)
-    let exits = await file_exists(path);
+    const task_dir = config.getTaskDir(taskname)
+    let exits = await file_exists(task_dir);
     if(!exits) throw new Error(`No such task: "${taskname}"`)
     return true
 }

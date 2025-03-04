@@ -58,10 +58,9 @@ export async function makeTask(config:Config, args:string[]) {
     const taskname = args.shift()
     // info("making the task",taskname);
     if(!taskname) return printUsage();
-    const procpath = paths.join( config.getProcsDir(), taskname)
-    if(!(await file_exists(procpath))) await fs.mkdir(procpath)
-    // info("made dir",procpath);
-    const confpath = paths.join(procpath, 'config.json')
+    const task_dir = config.getTaskDir(taskname);
+    if(!(await file_exists(task_dir))) await fs.mkdir(task_dir)
+    const confpath = paths.join(task_dir, 'config.json')
     const proc_config = JSON.parse(JSON.stringify(CONFIG_TEMPLATE))
     proc_config.name = taskname;
 
@@ -167,9 +166,9 @@ export async function nuke_task(config:Config, args:string[]) {
     if(!taskname || taskname !== taskname2) return console.log("you must type the name twice to nuke a task")
     await stopTask(config,[taskname])
     p.info("fully stopped")
-    let taskdir = paths.join(config.getProcsDir(),taskname)
-    p.info("nuking ", taskdir)
-    await fs.rmdir(taskdir, {recursive:true})
+    let task_dir = config.getTaskDir(taskname)
+    p.info("nuking ", task_dir)
+    await fs.rmdir(task_dir, {recursive:true})
 }
 
 
