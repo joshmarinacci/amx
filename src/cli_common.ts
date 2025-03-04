@@ -20,9 +20,9 @@ export async function listProcesses(config:Config): Promise<void> {
     const data = await req.json()
     if(data['tasks']) {
         let tasks: Task[] = data.tasks
-        if (tasks.length <= 0) return console.log("no running tasks");
+        if (tasks.length <= 0) return p.info("no running tasks");
         tasks.forEach(task => {
-            p.info("task ",
+            console.log("task ",
                 pad(task.name, 20),
                 task.running ? 'running' : 'stopped',
                 task.pid,
@@ -37,7 +37,6 @@ export type Command = (config:Config, args:string[]) => Promise<void>
 export async function stopServer(config:Config): Promise<void> {
     await checkRunning(config)
     let data = await doPost(config,'stopserver')
-    console.log("response = ", data)
 }
 export async function printVersion(config:Config) {
     let dir = paths.dirname(fileURLToPath(import.meta.url))
@@ -45,7 +44,6 @@ export async function printVersion(config:Config) {
     p.info(JSON.parse(data.toString()).version)
 }
 export async function selfStatus(config:Config) {
-    console.log("hero",config)
     p.info("AMX");
     await printVersion(config);
     p.info("Config", config.getConfigFilePath());
@@ -87,21 +85,21 @@ export async function stopTask(config:Config, args:string[]) {
     await checkTaskMissing(config, taskname)
     p.info(`stopping the task '${taskname}'`);
     let res = await doPost(config, "stop?task="+taskname)
-    console.log(res)
+    p.info(res)
 }
 export async function restartTask(config:Config, args:string[]) {
     const taskname = args[0]
     await checkTaskMissing(config, taskname)
     p.info(`restarting the task ${taskname}`);
     let res = await doPost(config, "restart?task="+taskname)
-    console.log(res)
+    p.info(res)
 }
 
 export async function logTask(config:Config, args:string[]) {
     const taskname = args[0]
     await checkTaskMissing(config, taskname)
     const logPath = paths.join(config.getProcsDir(),taskname,'stdout.log')
-    console.log("looking at",logPath)
+    p.info("looking at",logPath)
     if(await file_exists(logPath)) createReadStream(logPath).pipe(process.stdout);
 
     const errPath = paths.join(config.getProcsDir(),taskname,'stderr.log')

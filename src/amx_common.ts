@@ -31,6 +31,10 @@ export class Config {
     getTaskDir(taskname: string):string {
         return paths.join(this.getProcsDir(),taskname)
     }
+
+    getLogFilePath() {
+        return paths.join(this.root,'server.log')
+    }
 }
 export async function init():Promise<Config> {
     if(!process.env.HOME) fail('Cannot calculate HOME')
@@ -69,7 +73,6 @@ export function startServer() {
     const out = fs.openSync(outlog_path, 'a')
     const err = fs.openSync(outlog_path, 'a')
     let server_path = path.resolve(dirname,'server_start.js')
-    console.log("server path",server_path)
     // const child = ch.spawn("node",[server_path],{detached:false,
     //     stdio:['ignore',out,err]
     // })
@@ -77,9 +80,6 @@ export function startServer() {
     child.unref();
 }
 
-
-// export function log(...args:string[]) {  console.log("LOG",...args) }
-// export function info(...args:unknown[]) { console.log(...args) }
 
 export async function read_file(conf_path:string) {
     let info = await fs.promises.readFile(conf_path)

@@ -10,15 +10,23 @@ import {
 } from "./amx_common.js"
 import {file_exists} from "./util.js";
 import {make_logger} from "josh_js_util";
+import path from "path";
 
 const config = await init()
 
 const p = make_logger("SERVER")
-const log = (...args:any[]) => {
-    p.info(...args)
+
+function LOG(...values:any[]) {
+    const timestamp = new Date().toISOString();
+    const message = `[${timestamp}] ${values.map(v => ""+v).join(" ")}\n`
+    p.info(message);
+    fs.appendFile(config.getLogFilePath(), message, (err) => {
+        if(err) console.error(err)
+    })
 }
+
 function ERROR(res:ServerResponse,str:string) {
-    log("ERROR",str);
+    LOG("ERROR",str);
     res.statusCode = 500;
     res.setHeader('Content-Type','application/json');
     res.write(JSON.stringify({status:'error','message':str}));
@@ -26,7 +34,7 @@ function ERROR(res:ServerResponse,str:string) {
 }
 
 function SUCCESS(res:ServerResponse,str:string) {
-    log("SUCCESS",str);
+    LOG("SUCCESS",str);
     res.statusCode = 200;
     res.setHeader('Content-Type','application/json');
     res.write(JSON.stringify({status:'success','message':str}));
@@ -54,7 +62,6 @@ const handle_status:Handler = async (req,res) => {
 }
 const handle_list:Handler = async (req, res) => {
     let pids = await listProcesses()
-    p.info("pids",pids)
     res.statusCode = 200;
     const list = await fs.promises.readdir(config.getProcsDir())
     res.setHeader('Content-Type', 'application/json');
@@ -138,11 +145,6 @@ function parseTaskName(req:IncomingMessage) {
     return URL.parse(req.url).query.split('=')[1]
 }
 
-// async function taskExists(task) {
-//     if (!task) return false
-//     return await file_exists(paths.join(getConfigDir(), task))
-// }
-
 async function getTaskPid(config:Config, task:string) {
     const pidfile = paths.join(config.getProcsDir(),task,'pid');
     if(!(await file_exists(pidfile))) return -1
@@ -161,10 +163,11 @@ function getTaskRestartInfo(taskname:string):TaskRestartInfo {
 }
 
 async function reallyStartTask(config:Config, taskname:string) {
-    log("realling starting the task", taskname)
+    LOG("really starting the task", taskname)
     const config_json = await read_task_config(config, taskname)
     const task_dir = config.getTaskDir(taskname)
-    if (!(await file_exists(config_json.directory))) throw new Error("directory does not exist " + config_json.directory)
+    if(!path.isAbsolute(config_json.directory)) throw new Error(`directory for task "${taskname}" is not absolute: "${config_json.directory}"`)
+    if (!(await file_exists(config_json.directory))) throw new Error(`directory does not exist "${config_json.directory}"`)
     let cargs = []
     let command = null
     if (config_json.type === 'npm') {
@@ -193,27 +196,31 @@ async function reallyStartTask(config:Config, taskname:string) {
     };
     copy_object_props(process.env, opts.env);
     if (config_json.env) copy_object_props(config_json.env, opts.env);
+    LOG(`running "${command} ${cargs}"`)
+    LOG(`in dir ${config_json.directory}`)
     const child:ChildProcessWithoutNullStreams = child_process.spawn(command, cargs, opts)
-    child.on('error', err => log("error spawning ", command))
-    await fs.promises.writeFile(paths.join(task_dir,'pid'), '' + child.pid);
+    child.on('error', err => LOG("error spawning ", command))
+    const pidfile =paths.join(task_dir,'pid')
+    LOG(`writing pid "${child.pid}" to "${pidfile}"`)
+    await fs.promises.writeFile(pidfile, '' + child.pid);
     child.unref();
-    log("done starting. returning pid")
+    LOG("done starting. returning pid")
     return child.pid
 }
 
 async function startTask(config:Config, task:string) {
     const pid = await getTaskPid(config, task)
-    log("trying to start", task, 'pid is',pid);
+    LOG("trying to start", task, 'pid is',pid);
     getTaskRestartInfo(task).enabled = true;
     const info = await read_task_config(config,task)
     // log("task info is",info)
     if(info.archived === true) {
-        log("the task is archived")
+        LOG("the task is archived")
         getTaskRestartInfo(task).enabled = false;
         return -1
     }
     if('restart' in info && info.restart === false) {
-        log("only run the task once")
+        LOG("only run the task once")
         getTaskRestartInfo(task).enabled = false;
     }
     let pids = await listProcesses()
@@ -226,11 +233,11 @@ async function stopTask(config:Config, task:string) {
     const pid = await getTaskPid(config, task);
     let pids = await listProcesses()
     if (pids.indexOf(pid) >= 0) {
-        log("killing the pid", pid)
+        LOG("killing the pid", pid)
         process.kill(pid, 'SIGINT');
         return null
     } else {
-        log("couldn't find the pid")
+        LOG("couldn't find the pid")
         return "process not running"
     }
 }
@@ -246,19 +253,21 @@ const handlers:Record<string, Handler> = {
     // '/webhook': handle_webhook,
 };
 
+
 export function make_server() {
+    LOG("starting the server using config", config.getConfigFilePath(), config.getPort())
     return http.createServer(function(req:IncomingMessage,res:ServerResponse) {
-        console.log("inside the request",req.url)
+        // console.log("inside the request",req.url)
         // @ts-ignore
         const parts = URL.parse(req.url)
         let pathname = parts.pathname
-        console.log("pathname is",pathname)
         // if(parts.pathname.indexOf('/webhook')>=0) pathname = '/webhook'
+        LOG(`handling ${pathname}`)
         if(pathname && handlers[pathname]) {
             try {
                 return handlers[pathname](req, res)
                     .catch(e => {
-                        log("ERROR with handler",pathname)
+                        LOG("ERROR with handler",pathname)
                         console.error(e)
                         ERROR(res, "error" + e)
                     })
@@ -266,14 +275,13 @@ export function make_server() {
                 try {
                     ERROR(res, "error" + e)
                 } catch (ee) {
-                    console.log("final error")
-                    console.error(ee)
+                    LOG("final error",ee)
                     res.end()
                     return
                 }
             }
         }
-        log("no handler");
+        LOG(`no handler for pathname ${pathname}`);
         res.statusCode = 200;
         res.setHeader('Content-Type','text/json');
         res.write(JSON.stringify({'status':'alive'}));

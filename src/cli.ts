@@ -59,7 +59,7 @@ async function runCommand(args:string[]) {
         if (command && commands[command]) return await commands[command](config,args);
         return printUsage();
     } catch (e) {
-        console.log("ERROR",e.message)
+        log.error(e.message)
     }
 }
 
@@ -71,6 +71,5 @@ if(args.length < 3) {
     args.shift();
     args.shift();
     await runCommand(args);
-    console.log("done running ")
 }
 
