@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import {
-    archiveTask,
+    archiveTask, Command,
     editTask,
     followTask,
     infoTask,
@@ -17,12 +17,15 @@ import {
     stopServer,
     stopTask,
     unarchiveTask
-} from './cli_common'
-import {initSetup} from './amx_common'
+} from './cli_common.js'
+import {make_logger} from "josh_js_util";
+import {init} from "./amx_common.js";
 
-initSetup();
+const log = make_logger("CLI")
 
-const commands = {
+const config = await init()
+
+const commands:Record<string, Command> = {
     'list': listProcesses,
     'stopserver':stopServer,
     'version':printVersion,
@@ -50,10 +53,10 @@ const commands = {
     'nuke':nuke_task,
 };
 
-async function runCommand(args) {
+async function runCommand(args:string[]) {
     const command = args.shift()
     try {
-        if (commands[command]) return await commands[command](args);
+        if (command && commands[command]) return await commands[command](config,args);
         return printUsage();
     } catch (e) {
         console.log("ERROR",e.message)

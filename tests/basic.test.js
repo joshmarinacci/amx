@@ -3,8 +3,9 @@ import fs from 'fs'
 import chai, {expect} from "chai"
 import chaiHttp from 'chai-http'
 import paths from 'path'
-import {file_exists, initSetup, read_file} from '../src/amx_common.ts'
+import {initSetup, read_file} from '../src/amx_common.ts'
 import {makeTask} from '../src/cli_common.ts'
+import {file_exists} from "../src/util.js";
 
 chai.use(chaiHttp)
 

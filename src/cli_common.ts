@@ -1,39 +1,28 @@
 import {default as paths} from 'path'
 import {
-    checkTaskMissing,
-    CONFIG_TEMPLATE,
-    file_exists,
-    getConfig,
-    getConfigDir,
-    getRootDir,
-    info,
-    pad,
-    PORT,
+    checkTaskMissing, Config,
     read_task_config,
     startServer,
     write_task_config
-} from './amx_common'
+} from './amx_common.js'
 import {createReadStream, promises as fs} from 'fs'
 import {fileURLToPath} from 'url'
 import {default as ch} from 'child_process'
-import {sleep} from "josh_js_util";
+import {make_logger, sleep} from "josh_js_util";
+import {CONFIG_TEMPLATE, Task} from "./model.js";
+import {file_exists, pad} from "./util.js";
+const p = make_logger('CLI_COMMON')
 
-type Task = {
-    name: string,
-    path:string,
-    running:boolean,
-    pid:number,
-    archived?:boolean,
-}
-export async function listProcesses() {
-    await checkRunning()
-    let req = await fetch(`http://localhost:${PORT}/list`)
+
+export async function listProcesses(config:Config): Promise<void> {
+    await checkRunning(config)
+    let req = await fetch(`http://localhost:${config.getPort()}/list`)
     const data = await req.json()
     if(data['tasks']) {
         let tasks: Task[] = data.tasks
         if (tasks.length <= 0) return console.log("no running tasks");
         tasks.forEach(task => {
-            info("task ",
+            p.info("task ",
                 pad(task.name, 20),
                 task.running ? 'running' : 'stopped',
                 task.pid,
@@ -41,139 +30,145 @@ export async function listProcesses() {
         });
     }
 }
-export async function stopServer() {
-    await checkRunning()
-    let data = await doPost('/stopserver')
+
+export type Command = (config:Config, args:string[]) => Promise<void>
+
+
+export async function stopServer(config:Config): Promise<void> {
+    await checkRunning(config)
+    let data = await doPost(config,'stopserver')
     console.log("response = ", data)
 }
-export async function printVersion() {
+export async function printVersion(config:Config) {
     let dir = paths.dirname(fileURLToPath(import.meta.url))
     let data = await fs.readFile(paths.join(dir,'..','package.json'))
-    info(JSON.parse(data.toString()).version)
+    p.info(JSON.parse(data.toString()).version)
 }
-export async function selfStatus() {
-    info("AMX");
-    await printVersion();
-    info("Config", paths.join(getRootDir(),'config.json'));
-    info(JSON.stringify(getConfig(),null,'    '));
-    info("server on port ", PORT);
-    info("process descriptions", getConfigDir());
+export async function selfStatus(config:Config) {
+    console.log("hero",config)
+    p.info("AMX");
+    await printVersion(config);
+    p.info("Config", config.getConfigFilePath());
+    // p.info(JSON.stringify(getConfig(),null,'    '));
+    p.info("server on port ", config.getPort());
+    p.info("process descriptions", config.getProcsDir());
 }
 
-export async function makeTask(args) {
+export async function makeTask(config:Config, args:string[]) {
     const taskname = args.shift()
     // info("making the task",taskname);
     if(!taskname) return printUsage();
-    const procpath = paths.join(getConfigDir(), taskname)
+    const procpath = paths.join( config.getProcsDir(), taskname)
     if(!(await file_exists(procpath))) await fs.mkdir(procpath)
     // info("made dir",procpath);
     const confpath = paths.join(procpath, 'config.json')
-    const config = JSON.parse(JSON.stringify(CONFIG_TEMPLATE))
-    config.name = taskname;
+    const proc_config = JSON.parse(JSON.stringify(CONFIG_TEMPLATE))
+    proc_config.name = taskname;
 
     if(args.length > 0) {
-        config.script = args[0];
-        config.directory = process.cwd();
+        proc_config.script = args[0];
+        proc_config.directory = process.cwd();
     }
-    await fs.writeFile(confpath,JSON.stringify(config,null,'    '));
-    info("edit the config file",confpath);
-    info("then run: amx start ",taskname);
+    await fs.writeFile(confpath,JSON.stringify(proc_config,null,'    '));
+    p.info("edit the config file",confpath);
+    p.info("then run: amx start ",taskname);
     return confpath
 }
 
-export async function startTask(args) {
+export async function startTask(config:Config, args:string[]) {
     const taskname = args[0]
-    await checkTaskMissing(taskname)
-    info(`starting the task '${taskname}'`)
-    let res = await doPost("/start?task="+taskname)
+    p.info("startTask",taskname)
+    await checkTaskMissing(config, taskname)
+    p.info(`starting the task '${taskname}'`)
+    let res = await doPost(config, "start?task="+taskname)
+    p.info(res)
+}
+export async function stopTask(config:Config, args:string[]) {
+    const taskname = args[0]
+    await checkTaskMissing(config, taskname)
+    p.info(`stopping the task '${taskname}'`);
+    let res = await doPost(config, "stop?task="+taskname)
     console.log(res)
 }
-export async function stopTask(args) {
+export async function restartTask(config:Config, args:string[]) {
     const taskname = args[0]
-    await checkTaskMissing(taskname)
-    info(`stopping the task '${taskname}'`);
-    let res = await doPost("/stop?task="+taskname)
-    console.log(res)
-}
-export async function restartTask(args) {
-    const taskname = args[0]
-    await checkTaskMissing(taskname)
-    info(`restarting the task ${taskname}`);
-    let res = await doPost("/restart?task="+taskname)
+    await checkTaskMissing(config, taskname)
+    p.info(`restarting the task ${taskname}`);
+    let res = await doPost(config, "restart?task="+taskname)
     console.log(res)
 }
 
-export async function logTask(args) {
+export async function logTask(config:Config, args:string[]) {
     const taskname = args[0]
-    await checkTaskMissing(taskname)
-    const logPath = paths.join(getConfigDir(),taskname,'stdout.log')
+    await checkTaskMissing(config, taskname)
+    const logPath = paths.join(config.getProcsDir(),taskname,'stdout.log')
     console.log("looking at",logPath)
     if(await file_exists(logPath)) createReadStream(logPath).pipe(process.stdout);
 
-    const errPath = paths.join(getConfigDir(),taskname,'stderr.log')
+    const errPath = paths.join(config.getProcsDir(),taskname,'stderr.log')
     if(await file_exists(errPath)) createReadStream(errPath).pipe(process.stdout);
 }
-export async function followTask(args) {
+export async function followTask(config:Config, args:string[]) {
     const taskname = args[0]
-    await checkTaskMissing(taskname)
-    const outPath = paths.join(getConfigDir(),taskname,'stdout.log')
+    await checkTaskMissing(config, taskname)
+    const outPath = paths.join(config.getProcsDir(),taskname,'stdout.log')
     if(! (await file_exists(outPath))) return
-    const errPath = paths.join(getConfigDir(),taskname,'stderr.log')
+    const errPath = paths.join(config.getProcsDir(),taskname,'stderr.log')
     if(!(await file_exists(errPath))) return
-    const stdoutTail = new Tail(outPath)
-    stdoutTail.on('line', (data) => console.log(data))
-    stdoutTail.on('error', (data) => console.log('ERROR:',data))
-    const stderrTail = new Tail(errPath)
-    stderrTail.on('line', (data) => console.log(data))
-    stderrTail.on('error', (data) => console.log('ERROR:',data))
+    // const stdoutTail = new Tail(outPath)
+    // stdoutTail.on('line', (data) => console.log(data))
+    // stdoutTail.on('error', (data) => console.log('ERROR:',data))
+    // const stderrTail = new Tail(errPath)
+    // stderrTail.on('line', (data) => console.log(data))
+    // stderrTail.on('error', (data) => console.log('ERROR:',data))
 }
-export async function infoTask(args) {
+export async function infoTask(config:Config, args:string[]) {
     const taskname = args[0]
-    await checkTaskMissing(taskname)
-    const config = paths.join(getConfigDir(), taskname, 'config.json')
-    createReadStream(config).pipe(process.stdout);
+    await checkTaskMissing(config, taskname)
+    const config_json = paths.join(config.getProcsDir(), taskname, 'config.json')
+    createReadStream(config_json).pipe(process.stdout);
 }
 
-export async function editTask(args) {
+export async function editTask(config:Config, args:string[]) {
     const taskname = args[0]
     if(!taskname) return console.log("ERROR: missing taskname");
-    await checkTaskMissing(taskname)
-    const config = paths.join(getConfigDir(), taskname, 'config.json')
-    if(process.env.EDITOR) return spawnEditor(process.env.EDITOR,config);
+    await checkTaskMissing(config, taskname)
+    const config_file = paths.join(config.getProcsDir(), taskname, 'config.json')
+    if(process.env.EDITOR) return spawnEditor(process.env.EDITOR,config_file);
     //detect location of pico
     let [stdout_pico, pico] = await which_command('pico')
-    if(pico === 0) return spawnEditor(stdout_pico,config)
+    if(pico === 0) return spawnEditor(stdout_pico,config_file)
     let [stdout_vi, vi] = await which_command('vi')
-    if(vi === 0) return spawnEditor(stdout_vi,config)
+    if(vi === 0) return spawnEditor(stdout_vi,config_file)
     return console.log("no valid editor not found. please set the EDITOR variable");
 }
-export async function archiveTask(args) {
+export async function archiveTask(config:Config, args:string[]) {
     const taskname = args[0]
-    info(`archiving the task ${taskname}`)
-    await checkTaskMissing(taskname)
-    let json = await read_task_config(taskname)
+    p.info(`archiving the task ${taskname}`)
+    await checkTaskMissing(config, taskname)
+    let json = await read_task_config(config, taskname)
     json.archived = true
-    await write_task_config(taskname,json)
-    console.log("wrote out", await read_task_config(taskname))
+    await write_task_config(config, taskname,json)
+    console.log("wrote out", await read_task_config(config, taskname))
 }
-export async function unarchiveTask(args) {
+export async function unarchiveTask(config:Config, args:string[]) {
     const taskname = args[0]
-    info(`archiving the task ${taskname}`)
-    await checkTaskMissing(taskname)
-    let json = await read_task_config(taskname)
+    p.info(`archiving the task ${taskname}`)
+    await checkTaskMissing(config, taskname)
+    let json = await read_task_config(config, taskname)
     json.archived = false
-    await write_task_config(taskname,json)
-    console.log("wrote out", await read_task_config(taskname))
+    await write_task_config(config, taskname,json)
+    console.log("wrote out", await read_task_config(config, taskname))
 }
 
-export async function nuke_task(args) {
+export async function nuke_task(config:Config, args:string[]) {
     const taskname = args[0]
     const taskname2 = args[1]
     if(!taskname || taskname !== taskname2) return console.log("you must type the name twice to nuke a task")
-    await stopTask([taskname])
-    info("fully stopped")
-    let taskdir = paths.join(getConfigDir(),taskname)
-    info("nuking ", taskdir)
+    await stopTask(config,[taskname])
+    p.info("fully stopped")
+    let taskdir = paths.join(config.getProcsDir(),taskname)
+    p.info("nuking ", taskdir)
     await fs.rmdir(taskdir, {recursive:true})
 }
 
@@ -187,9 +182,9 @@ async function which_command(cmd:string):Promise<[string,number]> {
     })
 }
 
-export async function checkRunning() {
+export async function checkRunning(config: Config) {
     try {
-        await fetch(`http://localhost:${PORT}/status`)
+        await fetch(`http://localhost:${config.getPort()}/status`)
     } catch (e) {
         console.log("server doesn't seem to be running. lets start it")
         startServer()
@@ -197,13 +192,13 @@ export async function checkRunning() {
     }
 }
 
-function spawnEditor(editorpath, file) {
+function spawnEditor(editorpath:string, file:string) {
     const vim = ch.spawn(editorpath, [file], { stdio: 'inherit' })
-    vim.on('exit', code => info(`done editing ${file}`))
+    vim.on('exit', code => p.info(`done editing ${file}`))
 }
 
-async function doPost(path) {
-    let req = await fetch(`http://localhost:${PORT}/${path}`,{  method: 'POST', })
+async function doPost(config:Config, path:string) {
+    let req = await fetch(`http://localhost:${config.getPort()}/${path}`,{  method: 'POST', })
     return await req.json()
 }
 

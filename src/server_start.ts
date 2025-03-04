@@ -1,14 +1,16 @@
-import {getConfig, initSetup, log, PORT, sleep} from './amx_common'
-import {make_server} from './server_code'
+import {init} from './amx_common.js'
+import {make_server} from './server_code.js'
+import {sleep} from "./util.js";
+import {make_logger} from "josh_js_util";
 
-initSetup();
+const log = make_logger("SERVER_START")
 
-const config = getConfig()
-log("config is",config);
+const config = await init()
+log.info("config is",config);
 
 let server = make_server()
-server.listen(PORT, function() {
-    log("we are up and running");
+server.listen(config.getPort(), function() {
+    log.info("we are up and running");
 });
-await sleep(2000)
-console.log("server running")
+await sleep(1000)
+log.info("server running")

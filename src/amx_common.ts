@@ -1,55 +1,61 @@
 import path from 'path'
+import paths from 'path'
 import {fileURLToPath} from 'url'
 import {default as ch} from 'child_process'
 import fs from 'fs'
-import paths from 'path'
 import {make_logger} from "josh_js_util"
+import {fail, file_exists} from "./util.js";
 
 const p = make_logger("amx_common")
-export const CONFIG_TEMPLATE = {
-    name:"unnamed task",
-    directory:"no_dir_specified",
-    type:'node',
-    script:'myscript.js'
-};
+export class Config {
+    private root: string;
+    private procs: string;
 
-let PROCS
-let root
-let config
-export const initSetup = function() {
-    if(!process.env.HOME) throw new Error("can't calculate HOME");
-    const HOME = process.env.HOME
-    root = path.join(HOME,'.amx');
-    if(!fs.existsSync(root)) fs.mkdirSync(root);
-    PROCS = path.join(root,'procs');
-    if(!fs.existsSync(PROCS)) fs.mkdirSync(PROCS);
+    constructor(root: string, PROCS: string) {
+        this.root = root
+        this.procs = PROCS
+    }
 
+    getConfigFilePath() {
+        return paths.join(this.root,'config.json')
+    }
+
+    getPort() {
+        return 48999;
+    }
+
+    getProcsDir() {
+        return this.procs;
+    }
+}
+export async function init():Promise<Config> {
+    if(!process.env.HOME) fail('Cannot calculate HOME')
+    const HOME = process.env.HOME as string
+    const root = path.join(HOME,'.amx');
+    if(!fs.existsSync(root)) {
+        p.info(`making root dir '${root}'`)
+        fs.mkdirSync(root);
+    }
+    const procs = path.join(root,'procs');
+    if(!fs.existsSync(procs)) {
+        p.info(`making PROCS dir '${procs}'`)
+        fs.mkdirSync(procs);
+    }
     const file = path.join(root, 'config.json')
     if(!fs.existsSync(file)) {
-        config = { }
+        p.info(`no config found at '${file}'. Creating`)
+        return new Config(root, procs)
+        // config = { }
     } else {
         try {
-            config = JSON.parse(fs.readFileSync(file).toString());
+            // config = JSON.parse(fs.readFileSync(file).toString());
+            return new Config(root,procs)
         } catch (e) {
-            console.log("error parsing json in file", file);
-            process.exit(-1);
+            fail(`error parsing json in file ${file}`);
         }
     }
-};
-export const getConfigDir = function() {
-    return PROCS;
-};
-export const getRootDir = function() {
-    return root;
-};
-
-export const getConfig = function() {
-    return config;
-};
-
-
-export const PORT = 48999;
-
+    throw new Error("cannot start")
+}
 
 export function startServer() {
     let dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -60,71 +66,46 @@ export function startServer() {
     const err = fs.openSync(outlog_path, 'a')
     let server_path = path.resolve(dirname,'server_start.js')
     console.log("server path",server_path)
-    const child = ch.spawn("node",[server_path],{detached:true, stdio:['ignore',out,err]})
-    child.unref();
+    const child = ch.spawn("node",[server_path],{detached:false,
+        // stdio:['ignore',out,err]
+    })
+    // const child = ch.spawn("node",[server_path],{detached:true, stdio:['ignore',out,err]})
+    // child.unref();
 }
 
 
-export function log(...args:string[]) {  console.log("LOG",...args) }
-export function info(...args:unknown[]) { console.log(...args) }
-
-export async function file_exists(conf_path:string) {
-    try {
-        let info = await fs.promises.stat(conf_path)
-        return true
-    } catch (e) {
-        return false
-    }
-}
+// export function log(...args:string[]) {  console.log("LOG",...args) }
+// export function info(...args:unknown[]) { console.log(...args) }
 
 export async function read_file(conf_path:string) {
     let info = await fs.promises.readFile(conf_path)
     return JSON.parse(info.toString())
 }
 
-export async function sleep(delay:number) {
-    return new Promise((res,rej)=>{
-        setTimeout(()=>{
-            res()
-        },delay)
-    })
-}
-
-export function pad(str:string,n:number):string {
-    if(!str) return spaces(n);
-    if(str.length < n) return str + spaces(n-str.length);
-    return str;
-}
-
-export function spaces(n:number):string {
-    let str = "";
-    for(let i=0; i<n; i++) {
-        str +=' ';
-    }
-    return str;
-}
-
-export async function read_task_config(taskname:string) {
-    const taskdir = paths.join(getConfigDir(), taskname)
+export async function read_task_config(config:Config,taskname:string) {
+    p.info("taskname",taskname)
+    const taskdir = paths.join(config.getProcsDir(), taskname)
     const config_file = paths.join(taskdir, 'config.json')
     let data = await fs.promises.readFile(config_file)
     return JSON.parse(data.toString())
 }
 
-export async function write_task_config(taskname:string, json) {
-    const config_path = paths.join(getConfigDir(), taskname, 'config.json')
+export async function write_task_config(config:Config, taskname:string, json:object) {
+    const config_path = paths.join(config.getProcsDir(), taskname, 'config.json')
     await fs.promises.writeFile(config_path, JSON.stringify(json, null, "   "))
 }
 
-export function copy_object_props(src, dst) {
+
+export function copy_object_props(src:object, dst:object) {
     for(const name in src) {
+        // @ts-ignore
         dst[name] = src[name];
     }
 }
 
-export async function checkTaskMissing(taskname:string) {
+export async function checkTaskMissing(config:Config, taskname:string) {
     if (!taskname) throw new Error(`No such task: "${taskname}"`)
-    const path = paths.join(getConfigDir(), taskname)
+    const path = paths.join(config.getProcsDir(), taskname)
     let exits = await file_exists(path);
     if(!exits) throw new Error(`No such task: "${taskname}"`)
     return true
