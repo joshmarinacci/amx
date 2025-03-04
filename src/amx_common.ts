@@ -66,11 +66,11 @@ export function startServer() {
     const err = fs.openSync(outlog_path, 'a')
     let server_path = path.resolve(dirname,'server_start.js')
     console.log("server path",server_path)
-    const child = ch.spawn("node",[server_path],{detached:false,
-        // stdio:['ignore',out,err]
-    })
-    // const child = ch.spawn("node",[server_path],{detached:true, stdio:['ignore',out,err]})
-    // child.unref();
+    // const child = ch.spawn("node",[server_path],{detached:false,
+    //     stdio:['ignore',out,err]
+    // })
+    const child = ch.spawn("node",[server_path],{detached:true, stdio:['ignore',out,err]})
+    child.unref();
 }
 
 
