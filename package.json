@@ -1,6 +1,6 @@
 {
   "name": "amx",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "AMX: automatic process manager",
   "main": "src/cli.ts",
   "type": "module",
