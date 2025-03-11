@@ -173,6 +173,7 @@ export async function nuke_task(config:Config, args:string[]) {
 async function which_command(cmd:string):Promise<[string,number]> {
     return new Promise((res,rej)=>{
         ch.exec(`which ${cmd}`,(err,stdout,stderr) => {
+            //@ts-ignore
             if(err) res([stderr,err])
             res([stdout.trim(),0])
         })

@@ -32,6 +32,7 @@ const commands:Record<string, Command> = {
     'selfstatus':selfStatus,
 
     //create task
+    //@ts-ignore
     'make':makeTask,
 
     //start and stop tasks
@@ -59,6 +60,7 @@ async function runCommand(args:string[]) {
         if (command && commands[command]) return await commands[command](config,args);
         return printUsage();
     } catch (e) {
+        // @ts-ignore
         log.error(e.message)
     }
 }
