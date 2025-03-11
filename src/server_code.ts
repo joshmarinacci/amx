@@ -8,25 +8,22 @@ import {
     copy_object_props,
     checkTaskMissing, init, Config
 } from "./amx_common.js"
-import {file_exists} from "./util.js";
+import {file_exists, FileLoggerOutput} from "./util.js";
 import {make_logger} from "josh_js_util";
 import path from "path";
 
 const config = await init()
 
-const p = make_logger("SERVER")
+const p = make_logger("SERVER", true, [new FileLoggerOutput(config.getLogFilePath())])
 
 function LOG(...values:any[]) {
     const timestamp = new Date().toISOString();
     const message = `[${timestamp}] ${values.map(v => ""+v).join(" ")}\n`
     p.info(message);
-    fs.appendFile(config.getLogFilePath(), message, (err) => {
-        if(err) console.error(err)
-    })
 }
 
 function ERROR(res:ServerResponse,str:string) {
-    LOG("ERROR",str);
+    p.warn(str);
     res.statusCode = 500;
     res.setHeader('Content-Type','application/json');
     res.write(JSON.stringify({status:'error','message':str}));
@@ -34,7 +31,7 @@ function ERROR(res:ServerResponse,str:string) {
 }
 
 function SUCCESS(res:ServerResponse,str:string) {
-    LOG("SUCCESS",str);
+    p.info(str);
     res.statusCode = 200;
     res.setHeader('Content-Type','application/json');
     res.write(JSON.stringify({status:'success','message':str}));
@@ -83,7 +80,7 @@ const handle_list:Handler = async (req, res) => {
 }
 const handle_stopserver:Handler = async (req,res) => {
     SUCCESS(res,"stopping the server");
-    await setTimeout(() => process.exit(-1),100);
+    setTimeout(() => process.exit(-1),100);
 }
 
 const handle_start:Handler = async (req,res) => {
@@ -188,19 +185,25 @@ async function reallyStartTask(config:Config, taskname:string) {
         cwd: config_json.directory,
         detached: true,
         stdio: [
+            // @ts-ignore
             'ignore',
+            // @ts-ignore
             fs.openSync(paths.join(task_dir, 'stdout.log'), 'a'),  // Standard Out
+            // @ts-ignore
             fs.openSync(paths.join(task_dir, 'stderr.log'), 'a'),  // Standard Error
         ],
         env: {}
     };
+    // @ts-ignore
     copy_object_props(process.env, opts.env);
-    if (config_json.env) copy_object_props(config_json.env, opts.env);
+    if (config_json.env) { // @ts-ignore
+        copy_object_props(config_json.env, opts.env);
+    }
     LOG(`running "${command} ${cargs}"`)
     LOG(`in dir ${config_json.directory}`)
     const child:ChildProcessWithoutNullStreams = child_process.spawn(command, cargs, opts)
     child.on('error', err => LOG("error spawning ", command))
-    const pidfile =paths.join(task_dir,'pid')
+    const pidfile = paths.join(task_dir,'pid')
     LOG(`writing pid "${child.pid}" to "${pidfile}"`)
     await fs.promises.writeFile(pidfile, '' + child.pid);
     child.unref();

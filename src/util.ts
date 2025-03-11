@@ -1,4 +1,5 @@
 import fs from "fs";
+import {LoggerEvent, LoggerOutput} from "josh_js_util/dist/log.js";
 
 export async function file_exists(conf_path: string) {
     try {
@@ -34,4 +35,20 @@ export function spaces(n: number): string {
 export function fail(cannotCalculateHOME: string) {
     console.error('ERROR:', cannotCalculateHOME)
     process.exit(1)
+}
+
+export class FileLoggerOutput implements LoggerOutput {
+    private file: string;
+    constructor(file: string) {
+        this.file = file
+        fs.appendFileSync(this.file, "starting log")
+    }
+
+    log(evt: LoggerEvent): void {
+        try {
+            fs.appendFileSync(this.file, `${evt.prefix}:${evt.priority} ${evt.message} ${evt.args}`);
+        } catch (e) {
+            fs.appendFileSync(this.file, `crash ${e}`)
+        }
+    }
 }

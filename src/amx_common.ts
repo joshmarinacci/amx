@@ -32,7 +32,7 @@ export class Config {
         return paths.join(this.getProcsDir(),taskname)
     }
 
-    getLogFilePath() {
+    getLogFilePath():string {
         return paths.join(this.root,'server.log')
     }
 }
