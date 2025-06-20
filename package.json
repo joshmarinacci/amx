@@ -42,7 +42,8 @@
   "homepage": "https://github.com/joshmarinacci/amx#readme",
   "dependencies": {
     "chai-http": "^4.3.0",
-    "josh_js_util": "^0.1.40"
+    "josh_js_util": "^0.1.40",
+    "json5": "^2.2.3"
   },
   "devDependencies": {
     "chai": "^4.3.3",

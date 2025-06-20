@@ -5,6 +5,7 @@ import {default as ch} from 'child_process'
 import fs from 'fs'
 import {make_logger} from "josh_js_util"
 import {fail, file_exists} from "./util.js";
+import JSON5 from 'json5';
 
 const p = make_logger("amx_common")
 export class Config {
@@ -90,8 +91,8 @@ export async function read_task_config(config:Config,taskname:string) {
     p.info("taskname",taskname)
     const taskdir = config.getTaskDir(taskname)
     const config_file = paths.join(taskdir, 'config.json')
-    let data = await fs.promises.readFile(config_file)
-    return JSON.parse(data.toString())
+    let data = await fs.promises.readFile(config_file,'utf8')
+    return JSON5.parse(data);
 }
 
 export async function write_task_config(config:Config, taskname:string, json:object) {

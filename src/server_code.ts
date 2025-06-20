@@ -86,8 +86,13 @@ const handle_stopserver:Handler = async (req,res) => {
 const handle_start:Handler = async (req,res) => {
     const taskname = parseTaskName(req);
     await checkTaskMissing(config, taskname)
-    let cpid = await startTask(config, taskname)
-    SUCCESS(res, "started task " + taskname + ' ' + cpid)
+    try {
+        let cpid = await startTask(config, taskname)
+        SUCCESS(res, "started task " + taskname + ' ' + cpid)
+    } catch (e) {
+        console.log("had an error " + e)
+        ERROR(res,"task failed " + e)
+    }
 }
 const handle_stop:Handler = async (req,res) => {
     const taskname = parseTaskName(req);

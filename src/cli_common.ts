@@ -59,14 +59,14 @@ export async function makeTask(config:Config, args:string[]) {
     const task_dir = config.getTaskDir(taskname);
     if(!(await file_exists(task_dir))) await fs.mkdir(task_dir)
     const confpath = paths.join(task_dir, 'config.json')
-    const proc_config = JSON.parse(JSON.stringify(CONFIG_TEMPLATE))
-    proc_config.name = taskname;
+    // const proc_config = JSON5.parse(CONFIG_TEMPLATE);
+    // proc_config.name = taskname;
 
-    if(args.length > 0) {
-        proc_config.script = args[0];
-        proc_config.directory = process.cwd();
-    }
-    await fs.writeFile(confpath,JSON.stringify(proc_config,null,'    '));
+    // if(args.length > 0) {
+    //     proc_config.script = args[0];
+    //     proc_config.directory = process.cwd();
+    // }
+    await fs.writeFile(confpath, CONFIG_TEMPLATE)
     p.info("edit the config file",confpath);
     p.info("then run: amx start ",taskname);
     return confpath
@@ -78,7 +78,7 @@ export async function startTask(config:Config, args:string[]) {
     await checkTaskMissing(config, taskname)
     p.info(`starting the task '${taskname}'`)
     let res = await doPost(config, "start?task="+taskname)
-    p.info(res)
+    p.info(JSON.stringify(res));
 }
 export async function stopTask(config:Config, args:string[]) {
     const taskname = args[0]
@@ -196,7 +196,7 @@ function spawnEditor(editorpath:string, file:string) {
 }
 
 async function doPost(config:Config, path:string) {
-    let req = await fetch(`http://localhost:${config.getPort()}/${path}`,{  method: 'POST', })
+    let req:Response = await fetch(`http://localhost:${config.getPort()}/${path}`,{  method: 'POST', })
     return await req.json()
 }
 
