@@ -11,6 +11,7 @@ import {
 import {file_exists, FileLoggerOutput} from "./util.js";
 import {make_logger} from "josh_js_util";
 import path from "path";
+import * as os from "node:os";
 
 const config = await init()
 
@@ -54,7 +55,8 @@ type Handler = (req:IncomingMessage, res:ServerResponse) => Promise<void>
 const handle_status:Handler = async (req,res) => {
     res.statusCode = 200;
     res.setHeader('Content-Type','application/json');
-    res.write(JSON.stringify({'status':'alive'}));
+    let username = os.userInfo().username
+    res.write(JSON.stringify({'status':'alive', 'user':username}));
     res.end();
 }
 const handle_list:Handler = async (req, res) => {

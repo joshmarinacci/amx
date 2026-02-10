@@ -12,7 +12,7 @@ import {
     printUsage,
     printVersion,
     restartTask,
-    selfStatus,
+    selfStatus, serverStatus,
     startTask,
     stopServer,
     stopTask,
@@ -30,6 +30,7 @@ const commands:Record<string, Command> = {
     'stopserver':stopServer,
     'version':printVersion,
     'selfstatus':selfStatus,
+    'serverstatus':serverStatus,
 
     //create task
     //@ts-ignore
