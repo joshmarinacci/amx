@@ -123,6 +123,28 @@ export async function infoTask(config:Config, args:string[]) {
     const taskname = args[0]
     await checkTaskMissing(config, taskname)
     const config_json = paths.join(config.getProcsDir(), taskname, 'config.json')
+    console.log("info is",config_json)
+    let req = await fetch(`http://localhost:${config.getPort()}/list`)
+    const data = await req.json()
+    if(data['tasks']) {
+        let tasks: Task[] = data.tasks
+        if (tasks.length <= 0) return p.info("no running tasks");
+        let task = tasks.find(task => task.name == taskname)
+        console.log("main task is",task)
+        if (task && task.pid) {
+            console.log(`look up ports used by ${task.pid}`)
+            // `lsof -a -p PID -i}`
+            let output = await exec_command(`lsof -a -p ${task.pid} -i -Fn`)
+            let lines = output.split('\n')
+            let port = lines.find(line => line.startsWith('n'))
+            console.log(`using PORT(S): ${port?.substring(1)}`)
+            let more_lines = (await exec_command(`lsof -a -p ${task.pid} -d cwd -Fn`)).split('\n')
+            let cwd = more_lines[2]
+            // console.log("more lines", more_lines[2])
+            console.log(`cwd is ${cwd.substring(1)}`)
+
+        }
+    }
     createReadStream(config_json).pipe(process.stdout);
 }
 
@@ -170,6 +192,14 @@ export async function nuke_task(config:Config, args:string[]) {
 }
 
 
+async function exec_command(cmd:string):Promise<string> {
+    return  new Promise((resolve,reject) => {
+        ch.exec(cmd,(err,stdout)=>{
+            if(err) reject(err)
+            resolve(stdout)
+        })
+    })
+}
 async function which_command(cmd:string):Promise<[string,number]> {
     return new Promise((res,rej)=>{
         ch.exec(`which ${cmd}`,(err,stdout,stderr) => {

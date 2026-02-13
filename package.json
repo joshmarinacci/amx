@@ -21,6 +21,7 @@
     "try-cli-selfstatus": "npm run build && node build/cli.js selfstatus",
     "try-cli-version": "npm run build && node build/cli.js version",
     "try-cli-list": "npm run build && node build/cli.js list",
+    "try-cli-info": "npm run build && node build/cli.js info bar",
     "try-server": "npm run build && node build/server_start.js",
     "try-stopserver": "npm run build && node build/cli.js stopserver",
     "release-patch": "npm run build && npm version patch && npm publish"
