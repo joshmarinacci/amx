@@ -1,16 +1,12 @@
 import {default as paths} from 'path'
-import {
-    checkTaskMissing, Config,
-    read_task_config,
-    startServer,
-    write_task_config
-} from './amx_common.js'
+import {checkTaskMissing, Config, read_task_config, startServer, write_task_config} from './amx_common.js'
 import {createReadStream, promises as fs} from 'fs'
 import {fileURLToPath} from 'url'
 import {default as ch} from 'child_process'
 import {make_logger, sleep} from "josh_js_util";
 import {CONFIG_TEMPLATE, Task} from "./model.js";
 import {file_exists, pad} from "./util.js";
+
 const p = make_logger('CLI_COMMON')
 
 
@@ -50,6 +46,12 @@ export async function selfStatus(config:Config) {
     // p.info(JSON.stringify(getConfig(),null,'    '));
     p.info("server on port ", config.getPort());
     p.info("process descriptions", config.getProcsDir());
+}
+export async function serverStatus(config:Config) {
+    p.info("AMX");
+    p.info("server on port ", config.getPort());
+    let res = await checkRunning(config)
+    p.info("result is ", res)
 }
 
 export async function makeTask(config:Config, args:string[]) {
@@ -212,11 +214,13 @@ async function which_command(cmd:string):Promise<[string,number]> {
 
 export async function checkRunning(config: Config) {
     try {
-        await fetch(`http://localhost:${config.getPort()}/status`)
+        let res = await fetch(`http://localhost:${config.getPort()}/status`)
+        return await res.json()
     } catch (e) {
         p.info("server doesn't seem to be running. lets start it")
         startServer()
         await sleep(1)
+        return await checkRunning(config)
     }
 }
 
@@ -259,7 +263,9 @@ amx stopserver
 amx version
       version of AMX from NPM
 amx selfstatus
-      print version, config, status information of AMX itself
+      print version, config, status information of the AMX cli itself
+amx serverstatus
+      print status of the AMX server      
 `)
 }
 
