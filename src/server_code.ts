@@ -8,7 +8,7 @@ import {
     copy_object_props,
     checkTaskMissing, init, Config
 } from "./amx_common.js"
-import {file_exists, FileLoggerOutput} from "./util.js";
+import {file_exists, FileLoggerOutput, stop_process_tree} from "./util.js";
 import {make_logger} from "josh_js_util";
 import path from "path";
 import * as os from "node:os";
@@ -244,7 +244,7 @@ async function stopTask(config:Config, task:string) {
     let pids = await listProcesses()
     if (pids.indexOf(pid) >= 0) {
         LOG("killing the pid", pid)
-        process.kill(pid, 'SIGINT');
+        await stop_process_tree(pid)
         return null
     } else {
         LOG("couldn't find the pid")

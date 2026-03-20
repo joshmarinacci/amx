@@ -8,3 +8,5 @@
 - Implemented basic `amx follow` support by polling `stdout.log` and `stderr.log` for newly appended output.
 - Added tests covering follow behavior for existing logs and logs created after following begins.
 - Added an `npm test` script and fixed the follow polling interval to use the correct sleep units.
+- Fixed task stopping to terminate the detached process group on POSIX instead of only the recorded parent PID.
+- Added a regression test covering an `npm run` task that spawns a child worker process.
