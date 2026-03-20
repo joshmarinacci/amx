@@ -16,6 +16,7 @@
   },
   "scripts": {
     "tsc": "tsc",
+    "test": "npm run tsc && mocha tests/basic.test.js",
     "build": "esbuild src/cli.ts src/server_start.ts --outdir=build --bundle --target=es2022 --platform=node --format=esm --sourcemap",
     "try-cli": "npm run build && node build/cli.js",
     "try-cli-selfstatus": "npm run build && node build/cli.js selfstatus",

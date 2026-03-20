@@ -111,15 +111,24 @@ export async function followTask(config:Config, args:string[]) {
     const taskname = args[0]
     await checkTaskMissing(config, taskname)
     const outPath = paths.join(config.getProcsDir(),taskname,'stdout.log')
-    if(! (await file_exists(outPath))) return
     const errPath = paths.join(config.getProcsDir(),taskname,'stderr.log')
-    if(!(await file_exists(errPath))) return
-    // const stdoutTail = new Tail(outPath)
-    // stdoutTail.on('line', (data) => console.log(data))
-    // stdoutTail.on('error', (data) => console.log('ERROR:',data))
-    // const stderrTail = new Tail(errPath)
-    // stderrTail.on('line', (data) => console.log(data))
-    // stderrTail.on('error', (data) => console.log('ERROR:',data))
+    const states: FollowState[] = [
+        { path: outPath, position: await getInitialFollowPosition(outPath), label: 'stdout' },
+        { path: errPath, position: await getInitialFollowPosition(errPath), label: 'stderr' },
+    ]
+
+    let running = true
+    process.once('SIGINT', () => {
+        running = false
+        process.stdout.write('\n')
+    })
+
+    while (running) {
+        for (const state of states) {
+            await readAndPrintNewLogData(state)
+        }
+        await sleep(0.5)
+    }
 }
 export async function infoTask(config:Config, args:string[]) {
     const taskname = args[0]
@@ -234,6 +243,51 @@ async function doPost(config:Config, path:string) {
     return await req.json()
 }
 
+type FollowState = {
+    path: string
+    position: number
+    label: string
+}
+
+async function getInitialFollowPosition(path:string):Promise<number> {
+    if (!(await file_exists(path))) return 0
+    const stat = await fs.stat(path)
+    return stat.size
+}
+
+async function readAndPrintNewLogData(state:FollowState):Promise<void> {
+    if (!(await file_exists(state.path))) return
+    const stat = await fs.stat(state.path)
+    if (stat.size < state.position) {
+        state.position = stat.size
+        return
+    }
+    if (stat.size === state.position) return
+
+    const file = await fs.open(state.path, 'r')
+    try {
+        const length = stat.size - state.position
+        const buffer = new Uint8Array(length)
+        const {bytesRead} = await file.read(buffer, 0, length, state.position)
+        if (bytesRead > 0) {
+            const chunk = new TextDecoder().decode(buffer.subarray(0, bytesRead))
+            process.stdout.write(prefixLogChunk(state.label, chunk))
+            state.position += bytesRead
+        }
+    } finally {
+        await file.close()
+    }
+}
+
+function prefixLogChunk(label:string, chunk:string):string {
+    const prefix = `[${label}] `
+    const parts = chunk.split('\n')
+    return parts.map((part, index) => {
+        if (index === parts.length - 1 && part === '') return ''
+        return prefix + part
+    }).join('\n')
+}
+
 export function printUsage() {
     console.log(
 `amx make  <taskname>
@@ -268,6 +322,3 @@ amx serverstatus
       print status of the AMX server      
 `)
 }
-
-
-
