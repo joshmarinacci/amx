@@ -1,12 +1,16 @@
 # AMX
 
-AMX is a process and task runner/automator written in Node JS. It's designed
-to be super easy to use, and requires no external dependencies,
-except nodemailer for sending email alerts.
+AMX is a process and task runner written in Node.js. It provides a small CLI
+and a local background server for starting, stopping, listing, and inspecting
+named tasks.
 
 # NOTE
 
-Currently AMX only supports tasks written in Node. In the future it will support other arbitrary scripts.
+AMX supports three task types:
+
+- `node` to run a Node.js script
+- `npm` to run an npm script
+- `exe` to run a native executable
 
 
 
@@ -66,17 +70,16 @@ amx list
 # Remove a task
 
 ```
-amx remove taskname
+amx nuke taskname taskname
 ```
 
-This will stop the task if running, then delete the config files
+This will stop the task if running, then delete the task directory.
 
 
 # View task log
 
 All tasks log their output to `~/.amx/procs/<taskname>/stdout.log` and `stderr.log`. 
-Run `amx log taskname` to view the current stdout log.  Run `amx follow taskname` to 
-wait and continuually show new log output from both stdout and stderr.
+Run `amx log taskname` to print the current stdout and stderr logs.
 
 
 
@@ -133,24 +136,6 @@ with `process.env.SECRET_KEY`, etc.
 
 
 
-# Monitor a git hub repo
-
-Run `amx make taskname` to create the task. Then edit it like this:
-
-```
-{
-   "watch": {
-        "secret":"the secret you are looking for",
-        "repo":"https://github.com/joshmarinacci/cool.git"
-   }
-}
-```
-
-event push will make it check out and update on every 'push' event.
-
-Code will be checked out to the 'directory' directory.
-
-
 # archive a task
 
 Run `amx archive taskname` to mark a task as archived. If the task was already running you will still need to stop it as well.
@@ -160,47 +145,12 @@ Run `amx archive taskname` to mark a task as archived. If the task was already r
 Run `amx unarchive taskname` to mark a task as not archived. If the task was stopped you will still need to start it as well.
 
 
-
-
-# Shortcuts
-
-Make a new task for a node script in one step.
-```
-cd myproject
-amx make proj1 start.js
-amx start proj1
-```
-
-If you provide a filepath after the task name AMX will assume it is a node script and fill
-in the `directory` and `type` and `script` fields of the config file for you.
-
 # How it works
 
 AMX actually has two components: the command line interface and a server process. The server
-will be started automatically if it's not already running when you execute the commandline interface.
-The server will monitor the running tasks and restart them if they crash.  If a task needs
-to be restarted more than 5 times in 60 seconds then AMX will disable it.
-
-
-# Send Email Alerts
-
-To have AMX send emails whenever a process stops simply create or edit `~.amx/config.json`
-
-```
-{
-   "alerts": {
-        "email":{
-           "transport":"smtps://me%40mydomain.com:somepassword@smtp.gmail.com",
-           "to":"my@mydomain.com",
-           "from":"amx@myotherdomain.com"
-        }
-   }
-}
-```
-
-The `transport` parameter is a URL which will be passed to [nodemailer](https://nodemailer.com)
-to send an email.  Note that you must escape the @ sign as %40 and if you use gmail you
-probably need to generate a new application specific password.
+will be started automatically if it's not already running when you execute the command line interface.
+The server listens on a local HTTP port, launches configured tasks as detached child processes,
+stores their PIDs in the task directory, and writes process output to log files.
 
 
 # get status of AMX itself
@@ -212,15 +162,6 @@ amx selfstatus
 AMX
 0.0.11
 Config /Users/josh/.amx/config.json
-{
-    "alerts": {
-        "email": {
-            "transport": "smtps://user%40domain:password@smtp.gmail.com",
-            "from": "\"amx\" <amx@npmjs.com>",
-            "to": "username@domain.tld"
-        }
-    }
-}
 server on port  48999
 process descriptions /Users/josh/.amx/procs
 ```
